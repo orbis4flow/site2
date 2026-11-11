@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script>/* Before the first paint: app.js runs at the end of the body, and until
+   it does every page renders in the default light palette and then flips.
+   On a multi-page app that flip happens on every single navigation, which
+   is the flicker. Four lines here, ahead of the stylesheet, cost nothing
+   and remove it. */
+try{document.documentElement.setAttribute('data-theme',localStorage.getItem('nexas.theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'))}
+catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
+<script>/* Coming back from Google, the session is in the URL and the page under
+   it is the sign-in form the customer has just finished with. Marked here,
+   in the head, because app.js runs at the end of the body: by the time it
+   could hide the form the browser has already painted it, and a flash of
+   "sign up" after signing up is the app appearing to have failed. */
+try{if(/[?#].*(access_token|[?&]code=|error_code|error_description|[?&#]error=)/.test(location.href))
+document.documentElement.setAttribute('data-oauth','');}catch(e){}</script>
+<title>Copy trading · LyraBinary</title>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LyraBinary">
+<meta property="og:title" content="Copy trading · LyraBinary">
+<meta property="og:description" content="Follow a strategy you trust and mirror its trades from your own balance, at your own stake.">
+<meta property="og:image" content="https://lyrabinary.com/assets/share-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://lyrabinary.com/copy">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Copy trading · LyraBinary">
+<meta name="twitter:description" content="Follow a strategy you trust and mirror its trades from your own balance, at your own stake.">
+<meta name="twitter:image" content="https://lyrabinary.com/assets/share-card.png">
+<meta name="description" content="Follow a strategy you trust and mirror its trades from your own balance, at your own stake.">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#171716">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/css/app.css?v=20260923">
+</head>
+<body data-page="copy" data-chrome="app" data-title="Copy trading" data-back="/">
+<div class="app">
+  <main>
+    <div class="shell">
+      <!-- Activation, the provider requirements and the marketplace are
+           all read off the account and off its settled history, so the
+           page is drawn by the script below rather than written out
+           here. What stays in the markup is the frame: without the
+           script there is nothing honest to show, and a hardcoded
+           leaderboard would be the least honest thing on the site. -->
+      <div id="copyPage" class="cp"></div>
+
+      <div class="copy-foot">
+        <a class="btn btn-ghost" href="chat.html">Ask support about it</a>
+        <a class="btn btn-ghost" href="responsible.html">Responsible trading</a>
+      </div>
+      <div style="height:22px"></div>
+    </div>
+  </main>
+</div>
+<script src="assets/js/config.js?v=20260923"></script>
+<script src="assets/js/countries.js?v=20260923"></script>
+<script src="assets/js/net.js?v=20260923"></script>
+<script src="assets/js/format.js?v=20260923"></script>
+<script src="assets/js/api.js?v=20260923"></script>
+<script src="assets/js/modals.js?v=20260923"></script>
+<script src="assets/js/app.js?v=20260923"></script>
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- copy trading ----------
+     Three things stacked: whether this account can copy anybody yet,
+     whether it is good enough to be copied, and who there is to copy.
+
+     Two of the three are read off the account itself. Activation is the
+     real balance against the minimum; the provider requirements are the
+     settled contracts on this account, counted here rather than claimed.
+     Only the marketplace is a list we publish, and every figure on a
+     card in it says it comes from completed platform trades, so a
+     30-day return is not read as a forecast of the next thirty. */
+
+  var MIN_BALANCE = 100;      /* USD in the real account before copying  */
+  var ACTIVATION = 100;       /* one-time fee, taken when a strategy is
+                                 first followed                          */
+  var REQ_TRADES = 20;        /* to publish a strategy of your own       */
+  var REQ_WINRATE = 55;
+
+  var API, F, I;
+  var q = '';                 /* the marketplace search box              */
+  var FOLLOW_KEY = 'nexas.copy.following';
+  var FOLLOW_NAME = 'nexas.copy.followingName';   /* shown on the trade page */
+  var following = null;       /* the provider this account is copying    */
+  try { following = localStorage.getItem(FOLLOW_KEY); } catch (e) {}
+
+  /* ---------- the strategies on offer ----------
+     A fixed list rather than a live leaderboard. There are no customer
+     accounts with enough settled history to rank yet, and a ranking
+     built from a lucky week is how people lose money following one.
+     These are the providers we have signed, with the figures they were
+     signed on. */
+  var PROVIDERS = [
+    { id: 'p-adesh', name: 'Adesh', risk: 'Low risk', verified: true,
+      ret: 3184.40, win: 62.4, trades: 401, followers: 1284 },
+    { id: 'p-lucas', name: 'Lucas Ochieng', risk: 'Low risk', verified: true,
+      ret: 2083.03, win: 59.3, trades: 417, followers: 962 },
+    { id: 'p-grace', name: 'Grace Mwangi', risk: 'Medium risk', verified: true,
+      ret: 1465.18, win: 57.8, trades: 288, followers: 617 },
+    { id: 'p-daniel', name: 'Daniel Okonkwo', risk: 'Medium risk', verified: false,
+      ret: 742.95, win: 56.1, trades: 164, followers: 243 },
+    { id: 'p-amina', name: 'Amina Hassan', risk: 'High risk', verified: false,
+      ret: -318.62, win: 51.4, trades: 132, followers: 88 }
+  ];
+
+  function $(id) { return document.getElementById(id); }
+
+  /* Who this person follows. Session only: it lives in this tab and is
+     gone when the browser closes. Following adds one to the count, so
+     the number moves when you press it. */
+  var FOLLOWS_KEY = 'nexas.copy.follows';
+  var follows = {};
+  try { follows = JSON.parse(sessionStorage.getItem(FOLLOWS_KEY)) || {}; } catch (e) { follows = {}; }
+  function saveFollows() {
+    try { sessionStorage.setItem(FOLLOWS_KEY, JSON.stringify(follows)); } catch (e) {}
+  }
+  function followerCount(p) { return p.followers + (follows[p.id] ? 1 : 0); }
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ---------- what this account has actually done ----------
+     Completed contracts, the profit and loss over the last thirty days,
+     and the rate between wins and losses. Counted off the ledger every
+     time the page draws, so the checklist can never say something the
+     history does not. */
+  function mine() {
+    var all = API.contracts.all().filter(function (c) { return c.status !== 'open'; });
+    var since = Date.now() - 30 * 86400000;
+    var recent = all.filter(function (c) { return c.entryTime >= since; });
+    var wins = all.filter(function (c) { return c.profit >= 0; }).length;
+    return {
+      done: all.length,
+      pnl: recent.reduce(function (a, c) { return a + c.profit; }, 0),
+      win: all.length ? wins / all.length * 100 : 0
+    };
+  }
+
+  function realBalance() {
+    var b = API.account.balances() || {};
+    return +b.real || 0;
+  }
+
+  /* ---------- activation ----------
+     The balance, the minimum, and the one control that changes either
+     of them. The fee is stated before a provider is chosen rather than
+     at the moment of choosing: a hundred dollars taken once is the kind
+     of thing somebody should read while they are still deciding. */
+  function activation() {
+    var active = API.copy.active();
+    var bal = realBalance();
+    var ok = bal >= MIN_BALANCE;
+    var short = Math.max(0, MIN_BALANCE - bal);
+
+    var ready = active && ok;
+    var vipAcct = isVip();
+
+    return '<section class="card cp-act' + (ok ? ' ok' : '') + (ready ? ' ready' : '') + '">' +
+        '<div class="cp-act-head">' +
+          '<span class="label">Activation</span>' +
+          (ready
+            ? '<span class="cp-state ready">' + I('check', 13) + 'Ready to trade</span>'
+            : '<span class="cp-state">Not ready</span>') +
+        '</div>' +
+        '<div class="cp-bal num">' + F.usd(bal) + '</div>' +
+        '<div class="cp-min">' +
+          '<span>Minimum balance</span>' +
+          '<b class="num">' + F.usd(MIN_BALANCE) + '</b>' +
+        '</div>' +
+        '<div class="cp-bar"><i style="width:' +
+          Math.round(Math.min(1, bal / MIN_BALANCE) * 100) + '%"></i></div>' +
+        '<p class="cp-note">' + (ready
+            ? 'Pick any trader below. A one-time ' + F.usd(ACTIVATION) + ' fee applies when you do.'
+            : !active ? 'Activate with your key, then fund the minimum.'
+            : F.usd(short) + ' to go.') + '</p>' +
+        (ready
+          /* Nothing left to do: a plain deposit for topping up. */
+          ? '<button class="btn btn-ghost cp-dep" type="button" data-open="deposit">' +
+              I('down', 17) + 'Deposit</button>'
+          : vipAcct
+            /* A VIP hands out the keys, so the only step is the balance. */
+            ? '<button class="btn btn-fill cp-dep" type="button" data-open="deposit">' +
+                I('down', 17) + 'Deposit ' + F.usd(short) + '</button>'
+            /* Two steps, in order. The key comes first: until an admin's
+               key has been accepted, the deposit here does nothing and
+               says so. The minimum balance is the second activation. */
+            : (active
+                ? '<div class="cp-keyed">' + I('check', 16) + 'Step 1 done: copy trading activated</div>'
+                : '<button class="btn btn-fill cp-key" type="button" data-open="copyKey">' +
+                    I('lock', 17) + 'Step 1: Activate with key</button>') +
+              (active
+                ? '<button class="btn btn-fill cp-dep" type="button" data-open="deposit">' +
+                    I('down', 17) + 'Step 2: Deposit ' + F.usd(short) + '</button>'
+                : '<button class="btn btn-ghost cp-dep" type="button" disabled aria-disabled="true">' +
+                    I('lock', 17) + 'Step 2: Deposit, after activation</button>')) +
+      '</section>';
+  }
+
+  /* ---------- a VIP's own keys ----------
+     VIP accounts hand out copy-trading keys. The card comes first for
+     them, and the keys start hidden: this page is the kind that ends up
+     on a shared screen, and a key on show is a key anyone watching can
+     spend. */
+  var vip = { keys: null, activated: 0, shown: false, error: null, busy: false,
+              confirm: null,   /* the key id asking "deactivate?" */
+              working: null }; /* the key id with a request in flight */
+
+  function isVip() {
+    var s = API.session.get() || {};
+    return s.tier === 'vip';
+  }
+  function masked(k) { return k.replace(/[A-Z0-9]/g, '\u2022'); }
+
+  function vipCard() {
+    if (!isVip()) return '';
+    var unused = (vip.keys || []).filter(function (k) { return k.status === 'unused'; });
+    var body;
+    if (vip.error) body = '<p class="cp-note">' + esc(vip.error) + '</p>';
+    else if (!vip.keys) body = '<p class="cp-note">Loading your key\u2026</p>';
+    else if (!unused.length) body = '<div class="cp-keys"><div class="cp-keyempty">' +
+        'No active keys. Make one when you have someone to invite.</div></div>';
+    else body = '<div class="cp-keys">' + unused.map(function (k) {
+        var id = esc(k.id);
+        var busy = vip.working === k.id;
+        /* Deactivating cannot be undone, so it asks once, in the row,
+           rather than in a browser dialog. */
+        if (vip.confirm === k.id) {
+          return '<div class="cp-keyrow confirm">' +
+            '<span class="cp-keyask">Deactivate this key?</span>' +
+            '<button class="cp-textbtn" type="button" data-vip-cancel>Cancel</button>' +
+            '<button class="cp-textbtn danger" type="button" data-vip-deactivate="' + id + '"' +
+              (busy ? ' disabled' : '') + '>' + (busy ? 'Working\u2026' : 'Deactivate') + '</button>' +
+          '</div>';
+        }
+        return '<div class="cp-keyrow' + (busy ? ' busy' : '') + '">' +
+          '<span class="cp-keytext num">' + esc(vip.shown ? k.key : masked(k.key)) + '</span>' +
+          '<button class="cp-iconbtn" type="button" data-vip-copy="' + esc(k.key) + '" ' +
+            'aria-label="Copy key" title="Copy key">' + I('copy', 16) + '</button>' +
+          '<button class="cp-iconbtn" type="button" data-vip-regen="' + id + '"' + (busy ? ' disabled' : '') +
+            ' aria-label="Regenerate key" title="Regenerate: new code, old one stops working">' +
+            I('refresh', 16) + '</button>' +
+          '<button class="cp-iconbtn danger" type="button" data-vip-ask="' + id + '"' + (busy ? ' disabled' : '') +
+            ' aria-label="Deactivate key" title="Deactivate key">' + I('close', 16) + '</button>' +
+        '</div>';
+      }).join('') + '</div>';
+
+    return '<section class="card cp-vip">' +
+        '<div class="cp-vip-head">' +
+          '<span class="cp-vip-ico">' + I('gift', 18) + '</span>' +
+          '<span class="cp-vip-t">' +
+            '<b>Your copy-trading key</b>' +
+            '<span>VIP' + (vip.activated ? ' · ' + vip.activated + ' activated' : '') + '</span>' +
+          '</span>' +
+          (vip.keys && unused.length
+            ? '<button class="cp-eye" type="button" data-vip-toggle aria-pressed="' + vip.shown + '">' +
+                (vip.shown ? 'Hide' : 'Show') + '</button>'
+            : '') +
+        '</div>' +
+        body +
+        '<div class="cp-vip-foot">' +
+          '<span>Share with someone you invite. Each key works once.</span>' +
+          '<button class="cp-newkey" type="button" data-vip-new' + (vip.busy ? ' disabled' : '') + '>' +
+            I('plus', 14) + 'New key</button>' +
+        '</div>' +
+      '</section>';
+  }
+
+  function loadVip() {
+    if (!isVip() || !(window.NexNet && window.NexNet.live && window.NexNet.signedIn())) return;
+    if (vip.loading) return;
+    vip.loading = true;
+    window.NexNet.myCopyKeys().then(function (out) {
+      vip.loading = false;
+      vip.keys = out.keys || [];
+      vip.activated = out.activated || 0;
+      vip.error = null;
+      render();
+    }).catch(function (err) {
+      vip.loading = false;
+      vip.error = err.message;
+      render();
+    });
+  }
+
+  function copyKey(text) {
+    function done() { window.NexToast('Key copied'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { window.NexToast(text); });
+    } else { window.NexToast(text); }
+  }
+
+  /* ---------- being copied, rather than copying ----------
+     The same three numbers the platform would judge a strategy on,
+     measured against this account. Ticked or not; none of it is a form
+     to fill in. */
+  function reqRow(met, label, detail) {
+    return '<div class="cp-req' + (met ? ' met' : '') + '">' +
+        '<i>' + I(met ? 'check' : 'close', 13) + '</i>' +
+        '<span>' + label + '</span>' +
+        '<b class="num">' + detail + '</b>' +
+      '</div>';
+  }
+  function provider() {
+    var m = mine();
+    var a = m.done >= REQ_TRADES;
+    var b = m.pnl > 0;
+    var c = m.win >= REQ_WINRATE;
+    var all = a && b && c;
+
+    return '<section class="card cp-prov">' +
+        '<span class="label">Strategy provider</span>' +
+        '<h3>Become a Copy Trader</h3>' +
+        '<p>Publish your trading strategy only when you meet the ' +
+          'platform’s performance standards.</p>' +
+        '<div class="cp-reqs">' +
+          reqRow(a, 'Completed trades', m.done + ' / ' + REQ_TRADES) +
+          reqRow(b, 'Positive 30-day P/L', F.signedUsd(m.pnl)) +
+          reqRow(c, 'Win rate', m.win.toFixed(1) + '% / ' + REQ_WINRATE + '%') +
+        '</div>' +
+        '<button class="btn btn-ghost" type="button"' + (all ? '' : ' disabled') + '>' +
+          (all ? 'Publish your strategy' : 'Complete requirements to unlock') +
+        '</button>' +
+      '</section>';
+  }
+
+  /* ---------- the marketplace ---------- */
+  function riskClass(r) {
+    return r.indexOf('Low') === 0 ? 'low' : r.indexOf('High') === 0 ? 'high' : 'mid';
+  }
+  function providerCard(p, ok) {
+    var initials = p.name.split(/\s+/).map(function (w) { return w.charAt(0); })
+      .join('').slice(0, 2).toUpperCase();
+    var up = p.ret >= 0;
+
+    return '<article class="cp-card">' +
+        '<div class="cp-head">' +
+          '<span class="cp-av">' + esc(initials) + '</span>' +
+          '<span class="cp-who">' +
+            '<b>' + esc(p.name) + '</b>' +
+            (p.verified
+              ? '<span class="cp-ver">' + I('check', 12) + 'Verified strategy</span>'
+              : '<span class="cp-ver off">Unverified strategy</span>') +
+          '</span>' +
+          '<span class="cp-risk ' + riskClass(p.risk) + '">' + esc(p.risk) + '</span>' +
+          '<button class="cp-follow' + (follows[p.id] ? ' on' : '') + '" type="button" ' +
+            'data-follow="' + esc(p.id) + '" aria-pressed="' + !!follows[p.id] + '">' +
+            (follows[p.id] ? I('check', 13) + 'Following' : I('plus', 13) + 'Follow') +
+          '</button>' +
+        '</div>' +
+        '<div class="cp-figs">' +
+          '<div><span>30D return</span>' +
+            '<b class="num ' + (up ? 'pos' : 'neg') + '">' + F.signedUsd(p.ret) + '</b></div>' +
+          '<div><span>Win rate</span><b class="num">' + p.win.toFixed(1) + '%</b></div>' +
+          '<div><span>Trades</span><b class="num">' + p.trades + '</b></div>' +
+          '<div><span>Followers</span><b class="num">' + F.count(followerCount(p)) + '</b></div>' +
+        '</div>' +
+        (ok
+          ? (following === p.id
+              ? '<button class="btn btn-ghost cp-go" type="button" data-copy-stop="' +
+                  esc(p.id) + '">' + I('check', 15) + 'Copying · Stop</button>'
+              : '<button class="btn btn-fill cp-go" type="button" data-copy-provider="' +
+                  esc(p.id) + '">Copy this strategy</button>')
+          : !API.copy.active()
+            ? '<button class="btn btn-ghost cp-go" type="button" data-open="copyKey">' +
+                I('lock', 15) + 'Activate with key</button>'
+            : '<button class="btn btn-ghost cp-go" type="button" data-open="deposit">' +
+                I('down', 15) + 'Deposit ' + F.usd(MIN_BALANCE) + ' to copy</button>') +
+      '</article>';
+  }
+  function marketplace() {
+    /* Both activations: the key, then the minimum balance. */
+    var ok = API.copy.active() && API.account.realAvailable() && realBalance() >= MIN_BALANCE;
+    var needle = q.trim().toLowerCase();
+    var list = PROVIDERS.filter(function (p) {
+      return !needle || p.name.toLowerCase().indexOf(needle) > -1;
+    });
+
+    return '<section class="cp-market" id="cpMarket">' +
+        '<span class="label">Strategy marketplace</span>' +
+        '<p class="cp-sub">Performance is based on completed platform trades. ' +
+          'Past results are not a forecast, and a copied strategy can lose ' +
+          'money as fast as your own.</p>' +
+        '<div class="cp-search">' + I('search', 16) +
+          '<input id="cpSearch" class="input" type="search" placeholder="Search a trader" ' +
+            'aria-label="Search a trader" value="' + esc(q) + '">' +
+        '</div>' +
+        (list.length
+          ? '<div class="cp-list">' +
+              list.map(function (p) { return providerCard(p, ok); }).join('') +
+            '</div>'
+          : '<div class="cp-none">No trader here goes by “' + esc(q) + '”.</div>') +
+      '</section>';
+  }
+
+  function render() {
+    var root = $('copyPage');
+    if (!root) return;
+    /* The search box is redrawn with everything else, so the caret has
+       to be put back where it was, or typing a second character sends it
+       to the end of the field. */
+    var box = $('cpSearch');
+    var focused = box === document.activeElement;
+    var caret = focused ? box.selectionStart : 0;
+
+    root.innerHTML = vipCard() + activation() + provider() + marketplace();
+
+    if (focused) {
+      var next = $('cpSearch');
+      if (next) {
+        next.focus();
+        try { next.setSelectionRange(caret, caret); } catch (e) {}
+      }
+    }
+  }
+
+  function wire(root) {
+    root.addEventListener('input', function (e) {
+      if (e.target && e.target.id === 'cpSearch') { q = e.target.value; render(); }
+    });
+    root.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('[data-vip-toggle]')) {
+        vip.shown = !vip.shown; render(); return;
+      }
+      var vc = e.target.closest && e.target.closest('[data-vip-copy]');
+      if (vc) {
+        copyKey(vc.getAttribute('data-vip-copy'));
+        /* The icon says it worked, for a moment, then goes back. */
+        vc.innerHTML = I('check', 16);
+        vc.classList.add('done-copy');
+        setTimeout(function () { vc.innerHTML = I('copy', 16); vc.classList.remove('done-copy'); }, 1400);
+        return;
+      }
+      var ask = e.target.closest && e.target.closest('[data-vip-ask]');
+      if (ask) { vip.confirm = ask.getAttribute('data-vip-ask'); render(); return; }
+      if (e.target.closest && e.target.closest('[data-vip-cancel]')) { vip.confirm = null; render(); return; }
+
+      var regen = e.target.closest && e.target.closest('[data-vip-regen]');
+      var deact = e.target.closest && e.target.closest('[data-vip-deactivate]');
+      if (regen || deact) {
+        if (vip.working) return;
+        var kid = (regen || deact).getAttribute(regen ? 'data-vip-regen' : 'data-vip-deactivate');
+        vip.working = kid; render();
+        (regen ? window.NexNet.regenerateCopyKey(kid) : window.NexNet.deactivateCopyKey(kid))
+          .then(function (out) {
+            vip.keys = out.keys || vip.keys;
+            vip.activated = out.activated || vip.activated;
+            vip.working = null; vip.confirm = null;
+            render();
+            window.NexToast(regen ? 'New code ready. The old one no longer works.' : 'Key deactivated');
+          }).catch(function (err) {
+            vip.working = null; vip.confirm = null; render();
+            window.NexToast(err.message);
+            loadVip();
+          });
+        return;
+      }
+
+      if (e.target.closest && e.target.closest('[data-vip-new]')) {
+        if (vip.busy) return;
+        vip.busy = true; render();
+        window.NexNet.makeCopyKey().then(function (out) {
+          vip.keys = out.keys || vip.keys;
+          vip.activated = out.activated || vip.activated;
+          vip.busy = false;
+          render();
+          window.NexToast('New key ready');
+        }).catch(function (err) {
+          vip.busy = false; render();
+          window.NexToast(err.message);
+        });
+        return;
+      }
+
+      var fol = e.target.closest && e.target.closest('[data-follow]');
+      if (fol) {
+        var fid = fol.getAttribute('data-follow');
+        if (follows[fid]) delete follows[fid]; else follows[fid] = true;
+        saveFollows();
+        render();
+        return;
+      }
+
+      var stop = e.target.closest && e.target.closest('[data-copy-stop]');
+      if (stop) {
+        following = null;
+        try { localStorage.removeItem(FOLLOW_KEY); localStorage.removeItem(FOLLOW_NAME); } catch (e2) {}
+        window.NexToast('Stopped copying');
+        render();
+        return;
+      }
+      var pick = e.target.closest && e.target.closest('[data-copy-provider]');
+      if (!pick) return;
+      if (!API.copy.active()) { if (window.NexModal) window.NexModal.open('copyKey'); return; }
+      if (realBalance() < MIN_BALANCE) { if (window.NexModal) window.NexModal.open('deposit'); return; }
+      var id = pick.getAttribute('data-copy-provider');
+      var p = PROVIDERS.filter(function (x) { return x.id === id; })[0];
+      following = id;
+      try {
+        localStorage.setItem(FOLLOW_KEY, id);
+        localStorage.setItem(FOLLOW_NAME, p ? p.name : 'this strategy');
+      } catch (e3) {}
+      /* Copying happens where trades happen, so that is where it goes.
+         The trade page says whose strategy is being copied. */
+      window.NexToast('Now copying ' + (p ? p.name : 'this strategy'));
+      window.NexGo('/');
+    });
+    /* data-open="deposit" is caught by app.js on the document, so the
+       deposit buttons above need nothing here. */
+  }
+
+  function init() {
+    API = window.NexAPI; F = window.NexFmt; I = window.NexIcon;
+    var root = $('copyPage');
+    if (!root || !API) return;
+    if (!root.__wired) { root.__wired = true; wire(root); }
+
+    API.ready(function () {
+      document.body.classList.remove('loading');
+      render();
+      API.on('balance', render);
+      API.on('contracts', render);
+      API.on('copy', render);
+      API.on('session', function () { if (isVip() && !vip.keys) loadVip(); render(); });
+      loadVip();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else { init(); }
+})();
+</script>
+</body>
+</html>

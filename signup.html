@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script>/* Before the first paint: app.js runs at the end of the body, and until
+   it does every page renders in the default light palette and then flips.
+   On a multi-page app that flip happens on every single navigation, which
+   is the flicker. Four lines here, ahead of the stylesheet, cost nothing
+   and remove it. */
+try{document.documentElement.setAttribute('data-theme',localStorage.getItem('nexas.theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'))}
+catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
+<script>/* Coming back from Google, the session is in the URL and the page under
+   it is the sign-in form the customer has just finished with. Marked here,
+   in the head, because app.js runs at the end of the body: by the time it
+   could hide the form the browser has already painted it, and a flash of
+   "sign up" after signing up is the app appearing to have failed. */
+try{if(/[?#].*(access_token|[?&]code=|error_code|error_description|[?&#]error=)/.test(location.href))
+document.documentElement.setAttribute('data-oauth','');}catch(e){}</script>
+<title>Create Account · LyraBinary</title>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LyraBinary">
+<meta property="og:title" content="Create Account · LyraBinary">
+<meta property="og:description" content="Trade digit contracts on synthetic indices. M-Pesa and card, in your own currency.">
+<meta property="og:image" content="https://lyrabinary.com/assets/share-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://lyrabinary.com/signup">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Create Account · LyraBinary">
+<meta name="twitter:description" content="Trade digit contracts on synthetic indices. M-Pesa and card, in your own currency.">
+<meta name="twitter:image" content="https://lyrabinary.com/assets/share-card.png">
+<meta name="description" content="Trade digit contracts on synthetic indices. M-Pesa and card, in your own currency.">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/css/app.css?v=20260923">
+</head>
+<body data-page="signup" data-chrome="auth">
+<div class="app">
+  <main>
+    <div class="auth">
+      <div class="auth-head">
+        <a class="iconbtn back-btn auth-back" href="/" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="M11 18l-6-6 6-6"></path></svg></a>
+        <a class="wordmark" href="/" aria-label="LyraBinary"><span class="wm-name" aria-hidden="true"><b>lyra</b><i>binary</i></span></a>
+      </div>
+
+      <div class="auth-card">
+        <form data-splash="Setting up your account" data-auth="signup" style="display:flex;flex-direction:column;gap:16px">
+          <div class="field">
+            <label for="sEmail">Email address</label>
+            <input class="input" id="sEmail" type="email" autocomplete="email" placeholder="you@mail.com">
+          </div>
+          <!-- The country picker is built at runtime from the same table
+               the deposit sheet uses, so the two can never disagree about
+               which countries we take money from. -->
+          <div class="field">
+            <label for="sPhone">Mobile number</label>
+            <div class="phone" id="sPhoneRow"></div>
+            <!-- Said here rather than discovered at the deposit sheet:
+                 this is the number the money will come off, and somebody
+                 typing a number they do not hold should find that out
+                 now, not with an amount already entered. -->
+            <span class="hint">This is the number you will deposit from, and where we
+              reach you about a deposit or a payout. You can change it later in Account.</span>
+          </div>
+          <div class="field">
+            <label for="newPassword">Password</label>
+            <div class="input-wrap">
+              <input class="input" id="newPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+              <button type="button" data-reveal aria-label="Show password">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"></path><circle cx="12" cy="12" r="2.6"></circle></svg>
+              </button>
+            </div>
+            <div class="meter"><i></i><i></i><i></i><i></i></div>
+          </div>
+          <label class="checkline">
+            <input type="checkbox" id="terms" data-consent required>
+            <span>I am 18 or older and accept the <a class="link" href="terms">Terms</a> and <a class="link" href="risk">Risk Disclosure</a>.</span>
+          </label>
+          <button class="btn btn-fill" type="submit">Create account</button>
+        </form>
+
+        <div class="divider">or</div>
+
+        <button class="btn btn-ghost" type="button" data-splash="Setting up your account with Google">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 01-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/>
+            <path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0012 24z"/>
+            <path fill="#FBBC05" d="M5.4 14.4a7.2 7.2 0 010-4.6V6.7H1.4a12 12 0 000 10.8l4-3.1z"/>
+            <path fill="#EA4335" d="M12 4.8c1.8 0 3.4.6 4.6 1.8l3.4-3.4A12 12 0 001.4 6.7l4 3.1C6.3 6.9 8.9 4.8 12 4.8z"/>
+          </svg>
+          Continue with Google
+        </button>
+      </div>
+
+      <div class="auth-foot">Already registered? <a href="login">Sign in</a></div>
+    </div>
+  </main>
+</div>
+<script src="assets/js/config.js?v=20260923"></script>
+<script src="assets/js/countries.js?v=20260923"></script>
+<script src="assets/js/net.js?v=20260923"></script>
+<script src="assets/js/format.js?v=20260923"></script>
+<script src="assets/js/api.js?v=20260923"></script>
+<script src="assets/js/modals.js?v=20260923"></script>
+<script src="assets/js/app.js?v=20260923"></script>
+<script>
+(function () {
+  "use strict";
+  /* Every dialling code there is, not the seven countries we happen to
+     take deposits from. Those are a payments table and this is a phone
+     field; conflating them meant a customer in Lagos or London could not
+     enter their own number.
+
+     The list is ours, not the operating system's: a native <select> on a
+     laptop is 195 bare names with no flags, no codes and no way to
+     search except by guessing how we spell the country in English. */
+  function init() {
+    var API = window.NexAPI, C = window.NexCountries;
+    var row = document.getElementById('sPhoneRow');
+    if (!row || !API || !C) return;
+
+    var cc = API.geo.code();
+    if (!C.get(cc)) cc = 'KE';
+
+    row.innerHTML =
+      '<span class="phone-cc" id="sCC"></span>' +
+      '<input class="input num phone-input" id="sPhone" type="tel" inputmode="numeric" ' +
+        'autocomplete="tel-national" placeholder="Phone number">' +
+      '<input type="hidden" id="sCountry" value="' + cc + '">';
+
+    var input = document.getElementById('sPhone');
+    var hidden = document.getElementById('sCountry');
+
+    C.mountPicker(document.getElementById('sCC'), {
+      value: cc,
+      onChange: function (c) {
+        /* The chosen country is what gets sent, and it decides the
+           dialling code the number is read against. */
+        hidden.value = c.cc;
+        /* A local format to copy, for the countries we have one for.
+           Everyone else gets a plain prompt rather than a Kenyan number
+           held up as the example. */
+        var pay = API.geo.countries[c.cc];
+        input.placeholder = pay ? pay.sample : 'Phone number';
+      }
+    });
+  }
+
+  if (window.NexAPI) init();
+  else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

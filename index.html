@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script>/* Before the first paint: app.js runs at the end of the body, and until
+   it does every page renders in the default light palette and then flips.
+   On a multi-page app that flip happens on every single navigation, which
+   is the flicker. Four lines here, ahead of the stylesheet, cost nothing
+   and remove it. */
+try{document.documentElement.setAttribute('data-theme',localStorage.getItem('nexas.theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'))}
+catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
+<script>/* Coming back from Google, the session is in the URL and the page under
+   it is the sign-in form the customer has just finished with. Marked here,
+   in the head, because app.js runs at the end of the body: by the time it
+   could hide the form the browser has already painted it, and a flash of
+   "sign up" after signing up is the app appearing to have failed. */
+try{if(/[?#].*(access_token|[?&]code=|error_code|error_description|[?&#]error=)/.test(location.href))
+document.documentElement.setAttribute('data-oauth','');}catch(e){}</script>
+<title>Terminal · LyraBinary</title>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LyraBinary">
+<meta property="og:title" content="Terminal · LyraBinary">
+<meta property="og:description" content="The LyraBinary trading terminal: digit contracts on synthetic indices, priced in your own currency.">
+<meta property="og:image" content="https://lyrabinary.com/assets/share-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://lyrabinary.com">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Terminal · LyraBinary">
+<meta name="twitter:description" content="The LyraBinary trading terminal: digit contracts on synthetic indices, priced in your own currency.">
+<meta name="twitter:image" content="https://lyrabinary.com/assets/share-card.png">
+<meta name="description" content="The LyraBinary trading terminal: digit contracts on synthetic indices, priced in your own currency.">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#171716">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/css/app.css?v=20260923">
+</head>
+<body data-page="trade" data-chrome="app">
+<div class="app">
+  <main>
+    <div class="terminal" id="terminal">
+
+      <!-- Pinned on a phone: the three contracts and the chart stay where
+           they are while everything under them scrolls. It is a child of
+           .terminal rather than of .col-mid on purpose — sticky only holds
+           for the height of its own parent, and inside .col-mid the chart
+           would slide away the moment the stake panel came up. -->
+      <div class="chart-pin" id="chartPin">
+        <div class="ctabs" id="contractTabs"><div class="sk sk-tabs"></div></div>
+        <div class="chart-card">
+          <svg class="chart-sky" viewBox="0 0 1000 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><path fill="currentColor" d="M0.0 300.0 L0.0 230.0 L26.0 230.0 L26.0 300.0 Z M24.0 300.0 L24.0 260.0 L64.0 260.0 L64.0 300.0 Z M64.0 300.0 L64.0 245.0 L98.0 245.0 L98.0 300.0 Z M96.0 300.0 L96.0 260.0 L130.0 260.0 L130.0 300.0 Z M126.0 300.0 L126.0 260.0 L148.0 260.0 L148.0 300.0 Z M148.0 300.0 L148.0 170.0 L178.0 170.0 L178.0 300.0 Z M178.0 300.0 L178.0 245.0 L200.0 245.0 L200.0 300.0 Z M196.0 300.0 L196.0 260.0 L226.0 260.0 L226.0 300.0 Z M222.0 300.0 L222.0 215.0 L240.0 215.0 L240.0 300.0 Z M236.0 300.0 L236.0 260.0 L276.0 260.0 L276.0 300.0 Z M272.0 300.0 L272.0 170.0 L306.0 170.0 L306.0 300.0 Z M306.0 300.0 L306.0 260.0 L328.0 260.0 L328.0 300.0 Z M324.0 300.0 L324.0 200.0 L346.0 200.0 L346.0 300.0 Z M344.0 300.0 L344.0 245.0 L366.0 245.0 L366.0 300.0 Z M362.0 300.0 L362.0 230.0 L388.0 230.0 L388.0 300.0 Z M388.0 300.0 L388.0 215.0 L422.0 215.0 L422.0 300.0 Z M420.0 300.0 L420.0 245.0 L438.0 245.0 L438.0 300.0 Z M434.0 300.0 L434.0 215.0 L452.0 215.0 L452.0 300.0 Z M450.0 300.0 L450.0 170.0 L490.0 170.0 L490.0 300.0 Z M488.0 300.0 L488.0 150.0 L518.0 150.0 L518.0 300.0 Z M516.0 300.0 L516.0 215.0 L542.0 215.0 L542.0 300.0 Z M542.0 300.0 L542.0 215.0 L582.0 215.0 L582.0 300.0 Z M582.0 300.0 L582.0 200.0 L616.0 200.0 L616.0 300.0 Z M612.0 300.0 L612.0 185.0 L642.0 185.0 L642.0 300.0 Z M638.0 300.0 L638.0 200.0 L668.0 200.0 L668.0 300.0 Z M664.0 300.0 L664.0 245.0 L682.0 245.0 L682.0 300.0 Z M678.0 300.0 L678.0 230.0 L708.0 230.0 L708.0 300.0 Z M706.0 300.0 L706.0 150.0 L728.0 150.0 L728.0 300.0 Z M726.0 300.0 L726.0 245.0 L744.0 245.0 L744.0 300.0 Z M740.0 300.0 L740.0 185.0 L774.0 185.0 L774.0 300.0 Z M772.0 300.0 L772.0 185.0 L812.0 185.0 L812.0 300.0 Z M808.0 300.0 L808.0 150.0 L838.0 150.0 L838.0 300.0 Z M838.0 300.0 L838.0 200.0 L856.0 200.0 L856.0 300.0 Z M854.0 300.0 L854.0 245.0 L894.0 245.0 L894.0 300.0 Z M894.0 300.0 L894.0 200.0 L934.0 200.0 L934.0 300.0 Z M930.0 300.0 L930.0 150.0 L964.0 150.0 L964.0 300.0 Z M962.0 300.0 L962.0 170.0 L1002.0 170.0 L1002.0 300.0 Z M998.0 300.0 L998.0 260.0 L1024.0 260.0 L1024.0 300.0 Z M150.0 300.0 L160.0 70.0 L196.0 70.0 L206.0 300.0 Z M160.0 70.0 L178.0 58.0 L196.0 70.0 Z M176.5 300.0 L176.5 10.0 L179.5 10.0 L179.5 300.0 Z M300.0 300.0 L300.0 65.0 L316.0 65.0 L316.0 300.0 Z M430.0 300.0 L430.0 170.0 L494.0 170.0 L494.0 300.0 Z M438.0 300.0 L438.0 125.0 L486.0 125.0 L486.0 300.0 Z M445.0 300.0 L445.0 100.0 L479.0 100.0 L479.0 300.0 Z M451.0 300.0 L451.0 86.0 L473.0 86.0 L473.0 300.0 Z M456.0 300.0 L456.0 72.0 L468.0 72.0 L468.0 300.0 Z M459.5 300.0 L459.5 38.0 L464.5 38.0 L464.5 300.0 Z M600.0 300.0 L600.0 135.0 L640.0 135.0 L640.0 300.0 Z M605.0 300.0 L605.0 118.0 L635.0 118.0 L635.0 300.0 Z M609.0 300.0 L609.0 104.0 L631.0 104.0 L631.0 300.0 Z M613.0 300.0 L613.0 92.0 L627.0 92.0 L627.0 300.0 Z M616.0 300.0 L616.0 82.0 L624.0 82.0 L624.0 300.0 Z M618.5 300.0 L618.5 52.0 L621.5 52.0 L621.5 300.0 Z M720.0 300.0 L720.0 110.0 L754.0 110.0 L754.0 300.0 Z M720.0 110.0 L737.0 95.0 L754.0 110.0 Z M820.0 300.0 L820.0 135.0 L848.0 135.0 L848.0 300.0 Z M900.0 300.0 L900.0 180.0 L940.0 180.0 L940.0 300.0 Z"></path></svg>
+          <div class="chart-head">
+            <div class="chart-inst" id="chartInst"></div>
+            <div class="inst-live" id="instLive"></div>
+          </div>
+          <canvas id="chart" aria-label="Price chart"></canvas>
+          <div class="chart-tools">
+            <button data-zoom="in" aria-label="Zoom in">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            </button>
+            <button data-zoom="reset" aria-label="Reset zoom">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 12a9 9 0 109-9"></path><path d="M3 4v5h5"></path></svg>
+            </button>
+            <button data-zoom="out" aria-label="Zoom out">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 12h14"></path></svg>
+            </button>
+          </div>
+        </div>
+        <!-- Pinned with the chart: the digits are read against the price
+             line, tick by tick, so they stay on screen with it. -->
+        <div class="digits" id="digits"></div>
+      </div>
+
+      <!-- Everything from here down is one run of scrolling content:
+           whatever is running, the ticket, and the two buttons. -->
+      <div class="col-mid">
+        <div id="activeList"></div>
+      </div>
+
+      <div class="col-right">
+        <div class="panel" id="panel"><div class="sk sk-panel"></div></div>
+        <div class="trade-dock" id="dock"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script src="assets/js/config.js?v=20260923"></script>
+<script src="assets/js/countries.js?v=20260923"></script>
+<script src="assets/js/net.js?v=20260923"></script>
+<script src="assets/js/format.js?v=20260923"></script>
+<script src="assets/js/api.js?v=20260923"></script>
+<script src="assets/js/chart.js?v=20260923"></script>
+<script src="assets/js/modals.js?v=20260923"></script>
+<script src="assets/js/trade.js?v=20260923"></script>
+<script src="assets/js/tour.js?v=20260923"></script>
+<script src="assets/js/app.js?v=20260923"></script>
+</body>
+</html>

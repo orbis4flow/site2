@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script>/* Before the first paint: app.js runs at the end of the body, and until
+   it does every page renders in the default light palette and then flips.
+   On a multi-page app that flip happens on every single navigation, which
+   is the flicker. Four lines here, ahead of the stylesheet, cost nothing
+   and remove it. */
+try{document.documentElement.setAttribute('data-theme',localStorage.getItem('nexas.theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'))}
+catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
+<script>/* Coming back from Google, the session is in the URL and the page under
+   it is the sign-in form the customer has just finished with. Marked here,
+   in the head, because app.js runs at the end of the body: by the time it
+   could hide the form the browser has already painted it, and a flash of
+   "sign up" after signing up is the app appearing to have failed. */
+try{if(/[?#].*(access_token|[?&]code=|error_code|error_description|[?&#]error=)/.test(location.href))
+document.documentElement.setAttribute('data-oauth','');}catch(e){}</script>
+<title>History · LyraBinary</title>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="LyraBinary">
+<meta property="og:title" content="History · LyraBinary">
+<meta property="og:description" content="Trade digit contracts on synthetic indices. M-Pesa and card, in your own currency.">
+<meta property="og:image" content="https://lyrabinary.com/assets/share-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://lyrabinary.com/history">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="History · LyraBinary">
+<meta name="twitter:description" content="Trade digit contracts on synthetic indices. M-Pesa and card, in your own currency.">
+<meta name="twitter:image" content="https://lyrabinary.com/assets/share-card.png">
+<meta name="description" content="Trade digit contracts on synthetic indices. M-Pesa and card, in your own currency.">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#171716">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/css/app.css?v=20260923">
+</head>
+<body data-page="history" data-chrome="app" data-title="History" data-back="/">
+<div class="app">
+  <main>
+    <div class="shell" id="history">
+      <div id="histList"><div class="sk sk-list"></div></div>
+      <div style="height:22px"></div>
+    </div>
+  </main>
+</div>
+<script src="assets/js/config.js?v=20260923"></script>
+<script src="assets/js/countries.js?v=20260923"></script>
+<script src="assets/js/net.js?v=20260923"></script>
+<script src="assets/js/format.js?v=20260923"></script>
+<script src="assets/js/api.js?v=20260923"></script>
+<script src="assets/js/modals.js?v=20260923"></script>
+<script src="assets/js/app.js?v=20260923"></script>
+<script>
+(function () {
+  "use strict";
+  /* Every settled trade, newest first, grouped by day.
+
+     Source of the list, in order of preference:
+       the API, when signed in, so the history follows the person
+                   between devices instead of living in one browser
+       localStorage, otherwise, which is the demo and offline case
+
+     The server is the record, not the referee: contracts still settle in
+     the browser, so what is listed is what this account reported. That
+     distinction matters enough to be written down here and in
+     sql/007_trades.sql, and not to be papered over in the interface. */
+  function init() {
+    var API = window.NexAPI, F = window.NexFmt;
+    var list = document.getElementById('histList');
+    if (!list) return;
+
+    var live = !!(window.NexNet && window.NexNet.live && window.NexNet.signedIn());
+    var cursor = null, loading = false, exhausted = false;
+    var rows = [];
+
+    /* Which account's history this is. Practice trades are recorded to
+       the server like any other, so without this filter a real account
+       shows demo contracts, including ones synced from a browser used
+       for testing months ago. They are genuine trades, and they belong
+       under the account they were placed on and nowhere else. */
+    function accountKind() { return API.account.kind() === 'real' ? 'real' : 'demo'; }
+
+    function dayKey(ts) {
+      var d = new Date(ts);
+      return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    }
+    function dayLabel(ts) {
+      var k = dayKey(ts);
+      if (k === dayKey(Date.now())) return 'Today';
+      if (k === dayKey(Date.now() - 86400000)) return 'Yesterday';
+      return F.date(ts);
+    }
+
+    /* Both sources end up in one shape, so the renderer never has to ask
+       where a row came from. */
+    function fromLocal(c) {
+      var meta = API.symbol(c.symbol);
+      return {
+        label: API.contracts.label(c),
+        name: c.symbolName || (meta && meta.name) || c.symbol,
+        at: c.exitTime || c.entryTime,
+        profit: c.profit
+      };
+    }
+    function fromServer(t) {
+      var meta = API.symbol(t.symbol);
+      return {
+        label: API.contracts.label({ type: t.type, side: t.side, barrier: t.barrier }),
+        name: t.symbolName || (meta && meta.name) || t.symbol,
+        at: new Date(t.settledAt).getTime(),
+        profit: (t.profitMinor || 0) / 100
+      };
+    }
+
+    function skeleton() {
+      return '<div class="sk sk-list"></div>';
+    }
+
+    /* Where this list came from, said out loud. Without it there is no
+       way to tell a history kept on the server from whatever this
+       browser happens to have in localStorage, and the two look
+       identical: somebody sees trades from a week of testing and
+       reasonably concludes the page is showing mock data. */
+    function sourceNote() {
+      var demo = accountKind() === 'demo';
+      if (live) {
+        return demo
+          ? '<div class="hist-source"><span>Practice account. ' +
+            'Switch to the real account to see its history.</span></div>'
+          : '';
+      }
+      return '<div class="hist-source">' +
+        '<span>Practice history, kept on this device. ' +
+        'Sign in to see the trades recorded on your account.</span>' +
+        '<button class="btn-mini" id="histClear">Clear</button>' +
+      '</div>';
+    }
+    function empty() {
+      return '<div class="empty" style="padding:56px 20px">' +
+        window.NexIcon('clock', 24) +
+        '<b>No trades yet</b>' +
+        '<span>Settled trades show up here, newest first.</span></div>';
+    }
+    function failed(message) {
+      return '<div class="empty" style="padding:56px 20px">' +
+        window.NexIcon('alert', 24) +
+        '<b>Could not load your history</b>' +
+        '<span>' + (message || 'Try again in a moment.') + '</span>' +
+        '<button class="btn-mini" id="histRetry" style="margin-top:14px">Try again</button>' +
+        '</div>';
+    }
+
+    function render() {
+      if (!rows.length) { list.innerHTML = sourceNote() + empty(); wireSource(); return; }
+
+      var out = sourceNote(), lastDay = null;
+      rows.forEach(function (r) {
+        var k = dayKey(r.at);
+        if (k !== lastDay) {
+          if (lastDay !== null) out += '</div>';
+          out += '<div class="hist-day"><div class="hist-day-label">' + dayLabel(r.at) + '</div>';
+          lastDay = k;
+        }
+        out += '<div class="hist-row">' +
+          '<span class="hist-what"><b>' + r.label + '</b>' +
+            '<span>' + r.name.replace(' Index', '') + ' · ' + F.clock(r.at) + '</span></span>' +
+          '<span class="hist-num num ' + (r.profit >= 0 ? 'pos' : 'neg') + '">' +
+            F.signedMoney(r.profit) + '</span>' +
+        '</div>';
+      });
+      if (lastDay !== null) out += '</div>';
+
+      if (!exhausted && live) {
+        out += '<div class="hist-more"><button class="btn-mini" id="histMore">' +
+          (loading ? 'Loading' : 'Show older') + '</button></div>';
+      }
+      list.innerHTML = out;
+
+      var more = document.getElementById('histMore');
+      if (more) more.addEventListener('click', function () { load(); });
+      wireSource();
+    }
+
+    /* Clearing is local only, and says so: it removes what this browser
+       remembers and touches nothing on the server. */
+    function wireSource() {
+      var btn = document.getElementById('histClear');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        if (!window.confirm('Remove the practice history kept on this device? ' +
+            'Nothing on your account is affected.')) return;
+        API.contracts.clearClosed();
+        renderLocal();
+        window.NexToast('Practice history cleared on this device');
+      });
+    }
+
+    function renderLocal() {
+      var kind = accountKind();
+      rows = API.contracts.closed().filter(function (c) {
+        /* Contracts written before the account was recorded on them are
+           practice by definition: real trading needed an account. */
+        return (c.account === 'real' ? 'real' : 'demo') === kind;
+      }).sort(function (a, b) {
+        return (b.exitTime || b.entryTime) - (a.exitTime || a.entryTime);
+      }).map(fromLocal);
+      exhausted = true;
+      render();
+    }
+
+    async function load() {
+      if (loading || exhausted) return;
+      loading = true;
+      if (!rows.length) list.innerHTML = skeleton();
+      else render();
+
+      try {
+        var out = await window.NexNet.history({
+          account: accountKind(), before: cursor, limit: 50
+        });
+        rows = rows.concat(out.trades.map(fromServer));
+        cursor = out.nextBefore;
+        exhausted = !cursor;
+        loading = false;
+        render();
+      } catch (err) {
+        loading = false;
+        if (rows.length) { render(); return; }
+        list.innerHTML = failed(err && err.message);
+        var retry = document.getElementById('histRetry');
+        if (retry) retry.addEventListener('click', function () {
+          exhausted = false; load();
+        });
+      }
+    }
+
+    /* Switching account changes which history this is, so the page has
+       to fetch again rather than keep showing the other one. */
+    function reload() {
+      rows = [];
+      cursor = null;
+      exhausted = false;
+      loading = false;
+      if (live) load(); else renderLocal();
+    }
+
+    API.ready(function () {
+      document.body.classList.remove('loading');
+      reload();
+      if (!live) API.on('contracts', renderLocal);
+
+      var lastKind = accountKind();
+      API.on('balance', function () {
+        var kind = accountKind();
+        if (kind === lastKind) return;
+        lastKind = kind;
+        reload();
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

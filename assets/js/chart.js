@@ -1,0 +1,315 @@
+/* ============================================================
+   LyraBinary, chart
+   Canvas price chart: line or candles, zoom and pan, a crosshair
+   readout, and markers for the contracts currently running.
+   Redraws on requestAnimationFrame and only while visible.
+   ============================================================ */
+(function () {
+  "use strict";
+
+  function css(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function Chart(canvas, opts) {
+    this.cv = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.symbol = opts.symbol;
+    /* The site picks its chart in config.js (NEX_CHART): a line, or bars
+       of a few ticks each. */
+    var cfg = window.NEX_CHART || {};
+    this.type = cfg.type || 'line';   /* line | candle */
+    this.agg = cfg.agg || 1;          /* points per candle */
+    this.count = cfg.count || 120;    /* visible points */
+    window.NexChartLive = this;
+    this.offset = 0;           /* points scrolled back from the live edge */
+    this.markers = [];
+    this.cross = null;
+    this.dirty = true;
+    this.padR = 64;
+    this.padB = 22;
+    this.padT = 12;
+
+    this._bind();
+    this._loop = this._loop.bind(this);
+    requestAnimationFrame(this._loop);
+  }
+
+  Chart.prototype._bind = function () {
+    var self = this, cv = this.cv;
+
+    this._onResize = function () { self.resize(); };
+    window.addEventListener('resize', this._onResize);
+
+    cv.addEventListener('pointermove', function (e) {
+      var r = cv.getBoundingClientRect();
+      self.cross = { x: e.clientX - r.left, y: e.clientY - r.top };
+      if (self.drag) {
+        var dx = self.cross.x - self.drag.x;
+        var per = (r.width - self.padR) / self.count;
+        var shift = Math.round(dx / per);
+        if (shift) {
+          self.offset = Math.max(0, Math.min(self.data().length - self.count, self.drag.offset + shift));
+        }
+      }
+      self.dirty = true;
+    });
+    cv.addEventListener('pointerleave', function () { self.cross = null; self.dirty = true; });
+    cv.addEventListener('pointerdown', function (e) {
+      var r = cv.getBoundingClientRect();
+      self.drag = { x: e.clientX - r.left, offset: self.offset };
+      cv.setPointerCapture(e.pointerId);
+    });
+    cv.addEventListener('pointerup', function (e) {
+      self.drag = null;
+      try { cv.releasePointerCapture(e.pointerId); } catch (err) {}
+    });
+    cv.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      self.zoom(e.deltaY > 0 ? 1.12 : 0.89);
+    }, { passive: false });
+  };
+
+  Chart.prototype.data = function () {
+    return window.NexAPI.feed.history(this.symbol);
+  };
+
+  /* How many places this series is quoted to. Two was hardcoded on the
+     axis and on both price tags, which is right for an index at 9601.01
+     and useless for a pair at 1.08522: every gridline read 1.09. */
+  Chart.prototype.dp = function () {
+    var meta = window.NexAPI.symbol(this.symbol);
+    return meta && meta.digits != null ? meta.digits : 2;
+  };
+
+  Chart.prototype.setSymbol = function (s) { this.symbol = s; this.offset = 0; this.dirty = true; };
+  Chart.prototype.setType = function (t) { this.type = t; this.dirty = true; };
+  Chart.prototype.setAgg = function (n) { this.agg = n; this.dirty = true; };
+  Chart.prototype.setMarkers = function (list) { this.markers = list || []; this.dirty = true; };
+  Chart.prototype.zoom = function (factor) {
+    var max = Math.min(this.data().length, 400);
+    this.count = Math.max(30, Math.min(max, Math.round(this.count * factor)));
+    this.offset = Math.max(0, Math.min(this.data().length - this.count, this.offset));
+    this.dirty = true;
+  };
+  Chart.prototype.reset = function () { this.count = (window.NEX_CHART || {}).count || 120; this.offset = 0; this.dirty = true; };
+
+  Chart.prototype.resize = function () {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var r = this.cv.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    this.w = r.width; this.h = r.height;
+    this.cv.width = Math.round(r.width * dpr);
+    this.cv.height = Math.round(r.height * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.dirty = true;
+  };
+
+  Chart.prototype._loop = function () {
+    requestAnimationFrame(this._loop);
+    if (document.hidden || !this.dirty) return;
+    if (!this.w) this.resize();
+    if (!this.w) return;
+    this.dirty = false;
+    this.draw();
+  };
+
+  Chart.prototype.visible = function () {
+    var d = this.data();
+    var end = d.length - this.offset;
+    return d.slice(Math.max(0, end - this.count), end);
+  };
+
+  Chart.prototype.candles = function (points) {
+    if (this.agg <= 1) return null;
+    var out = [], i, j;
+    for (i = 0; i < points.length; i += this.agg) {
+      var slice = points.slice(i, i + this.agg);
+      if (!slice.length) break;
+      var o = slice[0].price, c = slice[slice.length - 1].price, hi = o, lo = o;
+      for (j = 0; j < slice.length; j++) {
+        hi = Math.max(hi, slice[j].price);
+        lo = Math.min(lo, slice[j].price);
+      }
+      out.push({ t: slice[0].t, o: o, h: hi, l: lo, c: c });
+    }
+    return out;
+  };
+
+  Chart.prototype.draw = function () {
+    var ctx = this.ctx, W = this.w, H = this.h;
+    var points = this.visible();
+    if (points.length < 2) return;
+
+    var candles = this.type === 'candle' ? this.candles(points) : null;
+    var min = Infinity, max = -Infinity, i;
+
+    if (candles) {
+      for (i = 0; i < candles.length; i++) { min = Math.min(min, candles[i].l); max = Math.max(max, candles[i].h); }
+    } else {
+      for (i = 0; i < points.length; i++) { min = Math.min(min, points[i].price); max = Math.max(max, points[i].price); }
+    }
+    var span = (max - min) || 1;
+    min -= span * 0.14; max += span * 0.14; span = max - min;
+
+    var w = W - this.padR, h = H - this.padB - this.padT;
+    var self = this;
+    function X(i) { return (i / (points.length - 1)) * w; }
+    function Y(v) { return self.padT + (max - v) / span * h; }
+
+    /* left transparent on purpose: the card behind paints the ground
+       and the globe watermark, which would otherwise be covered */
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '11px "IBM Plex Mono", monospace';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+
+    /* grid + price axis */
+    for (var g = 0; g <= 4; g++) {
+      var gy = this.padT + h * g / 4;
+      ctx.strokeStyle = css('--chart-grid'); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, Math.round(gy) + 0.5); ctx.lineTo(w, Math.round(gy) + 0.5); ctx.stroke();
+      ctx.fillStyle = css('--chart-axis');
+      ctx.fillText((max - span * g / 4).toFixed(this.dp()), w + 9, gy);
+    }
+
+    /* time axis */
+    var fmt = window.NexFmt;
+    ctx.textAlign = 'center';
+    for (var k = 0; k <= 3; k++) {
+      var idx = Math.round((points.length - 1) * k / 3);
+      var tx = X(idx);
+      ctx.fillStyle = css('--chart-axis');
+      ctx.fillText(fmt.time(points[idx].t), Math.min(Math.max(tx, 26), w - 26), H - this.padB / 2 - 1);
+    }
+    ctx.textAlign = 'left';
+
+    /* series */
+    if (candles) {
+      var cw = Math.max(2, (w / candles.length) * 0.62);
+      for (i = 0; i < candles.length; i++) {
+        var c = candles[i];
+        var cx = (i + 0.5) / candles.length * w;
+        var up = c.c >= c.o;
+        ctx.strokeStyle = up ? css('--pos') : css('--neg');
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(cx) + 0.5, Y(c.h));
+        ctx.lineTo(Math.round(cx) + 0.5, Y(c.l));
+        ctx.stroke();
+        var top = Y(Math.max(c.o, c.c)), bot = Y(Math.min(c.o, c.c));
+        ctx.fillRect(cx - cw / 2, top, cw, Math.max(1, bot - top));
+      }
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(X(0), Y(points[0].price));
+      for (i = 1; i < points.length; i++) ctx.lineTo(X(i), Y(points[i].price));
+      ctx.strokeStyle = css('--chart-line');
+      ctx.lineWidth = 1.3; ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.lineTo(X(points.length - 1), H - this.padB);
+      ctx.lineTo(X(0), H - this.padB);
+      ctx.closePath();
+      ctx.fillStyle = css('--chart-fill');
+      ctx.fill();
+    }
+
+    /* No contract markers. The entry diamonds, exit dots and the dashed
+       entry line broke up the trace wherever a trade had run; the line
+       stays one smooth stroke whatever was traded on it. */
+
+    /* live price marker */
+    var lastPt = points[points.length - 1];
+    var ly = Y(lastPt.price);
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = css('--chart-axis'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, Math.round(ly) + 0.5); ctx.lineTo(w, Math.round(ly) + 0.5); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(X(points.length - 1), ly, 2.8, 0, Math.PI * 2);
+    ctx.fillStyle = css('--chart-line'); ctx.fill();
+    /* Green, white figures: the price the line has just reached is the
+       one number on the axis anybody is reading, so it stands out. */
+    this._tag(lastPt.price.toFixed(this.dp()), ly, css('--accent-fill'), '#fff', css('--accent-fill'));
+
+    /* crosshair readout */
+    if (this.cross && this.cross.x < w && !this.drag) {
+      var idx2 = Math.round((this.cross.x / w) * (points.length - 1));
+      idx2 = Math.max(0, Math.min(points.length - 1, idx2));
+      var p = points[idx2], px = X(idx2), py = Y(p.price);
+
+      ctx.setLineDash([2, 3]);
+      ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(Math.round(px) + 0.5, this.padT); ctx.lineTo(Math.round(px) + 0.5, H - this.padB); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, Math.round(py) + 0.5); ctx.lineTo(w, Math.round(py) + 0.5); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2);
+      ctx.fillStyle = css('--accent'); ctx.fill();
+      this._tag(p.price.toFixed(this.dp()), py, css('--accent'), '#fff', css('--accent'));
+
+      /* time chip under the crosshair */
+      var tl = fmt.time(p.t);
+      ctx.font = '11px "IBM Plex Mono", monospace';
+      var tw = ctx.measureText(tl).width + 14;
+      var tx2 = Math.min(Math.max(px - tw / 2, 0), w - tw);
+      ctx.fillStyle = css('--surface-3');
+      ctx.fillRect(tx2, H - this.padB, tw, this.padB - 2);
+      ctx.fillStyle = css('--text');
+      ctx.textAlign = 'center';
+      ctx.fillText(tl, tx2 + tw / 2, H - this.padB / 2 - 1);
+      ctx.textAlign = 'left';
+    }
+  };
+
+  Chart.prototype._tag = function (text, y, bg, fg, border) {
+    var ctx = this.ctx, w = this.w - this.padR;
+    var tw = Math.min(ctx.measureText(text).width + 14, this.padR - 6);
+    var x = w + 4, ty = Math.max(2, Math.min(this.h - 24, y - 11));
+    ctx.fillStyle = bg;
+    ctx.fillRect(x, ty, tw, 22);
+    ctx.strokeStyle = border; ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, ty + 0.5, tw - 1, 21);
+    ctx.fillStyle = fg;
+    ctx.fillText(text, x + 7, ty + 11);
+  };
+
+  Chart.prototype.destroy = function () {
+    window.removeEventListener('resize', this._onResize);
+    this.dead = true;
+  };
+
+  /* ---------- the timeframe row, on a bars site ----------
+     obisflow's row of sizes over the chart. 1t is the plain tick line;
+     the others are bars of that many ticks, sixty of them on screen. */
+  function timeframes() {
+    var cfg = window.NEX_CHART;
+    if (!cfg || cfg.type !== 'candle') return;
+    var canvas = document.getElementById('chart');
+    var head = canvas && canvas.parentNode.querySelector('.chart-head');
+    if (!head || document.getElementById('tfRow')) return;
+    var sizes = [1, 5, 10, 15];
+    var row = document.createElement('div');
+    row.className = 'tf'; row.id = 'tfRow';
+    row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Bar size');
+    row.innerHTML = sizes.map(function (n) {
+      return '<button type="button" data-agg="' + n + '"' + (n === (cfg.agg || 1) ? ' class="active"' : '') + '>' + n + 't</button>';
+    }).join('');
+    head.parentNode.insertBefore(row, head.nextSibling);
+    row.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-agg]');
+      if (!b) return;
+      var n = +b.getAttribute('data-agg');
+      cfg.agg = n; cfg.count = n === 1 ? 120 : Math.min(600, n * 60);
+      [].forEach.call(row.children, function (x) { x.classList.toggle('active', x === b); });
+      var c = window.NexChartLive;
+      if (c) { c.agg = cfg.agg; c.count = cfg.count; c.offset = 0; c.dirty = true; }
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', timeframes);
+  else timeframes();
+
+  window.NexChart = {
+    create: function (canvas, opts) { return new Chart(canvas, opts || {}); }
+  };
+})();

@@ -1,0 +1,1140 @@
+/* ============================================================
+   LyraBinary, terminal
+   Renders the contract panel for the selected trade type, runs
+   validation, places and sells contracts, drives the automated
+   run loop, and keeps the chart, digits and open positions in
+   step with the feed.
+   ============================================================ */
+(function () {
+  "use strict";
+
+  var API, F, I;
+  var el = {};                                   /* mounted nodes */
+  var chart = null;
+  var unsub = [];
+
+  var S = {
+    symbol: 'R_10',
+    tab: 'even_odd',           /* even_odd | matches | over_under */
+    fromScan: null,            /* the scanner's ticket, while it is shown */
+    side: 'even',
+    barrier: 5,
+    stake: 10,               /* USD; replaced at init with a round local figure */
+    /* Not a setting. See ticksFor(): a contract runs five seconds, and
+       how many ticks that is depends on the instrument. */
+    ticks: 5,
+    /* Auto is what this screen is for. Manual is still a tap away, but
+       somebody arriving at a scanner-driven terminal is there to let it
+       run, and defaulting to the mode that does nothing on its own made
+       them set it up twice. */
+    mode: 'auto',           /* auto | manual */
+    error: null,
+    run: null
+  };
+
+  /* ---------- helpers ---------- */
+  function $(id) { return document.getElementById(id); }
+  function html(node, markup) { if (node) node.innerHTML = markup; }
+
+  function typeFor(side) {
+    if (S.tab === 'even_odd') return 'even_odd';
+    if (S.tab === 'matches') return side === 'matches' ? 'matches' : 'differs';
+    return side === 'over' ? 'over' : 'under';
+  }
+  function payoutFor(side) {
+    return API.contracts.payoutFor(typeFor(side), S.stake);
+  }
+  /* payoutRate carries the referral boost, so the figure on the button
+     always matches what the contract actually pays. */
+  function pct(side) {
+    return ((API.contracts.payoutRate(typeFor(side)) - 1) * 100).toFixed(2) + '%';
+  }
+
+  /* ---------- digits ---------- */
+  /* Only for a point old enough to predate the digit being stored on it.
+     Two decimal places was hardcoded here, which is wrong the moment a
+     series is quoted to five. */
+  function lastDigitOf(price, digits) {
+    return Math.abs(Math.round(price * Math.pow(10, digits))) % 10;
+  }
+
+  function renderDigits() {
+    var meta = API.symbol(S.symbol);
+    /* Markets is where this is chosen, so the terminal has to say which
+       one it landed on, otherwise the choice is invisible the moment
+       the page changes. Drawn over the chart so it costs no height. */
+    /* A real <select>, not a custom menu: on a phone it opens the
+       system picker, it is reachable from the keyboard for nothing, and
+       it cannot end up behind the canvas. Rebuilt only when the
+       instrument changes, so opening it is not interrupted by the tick
+       that repaints the digits underneath. */
+    /* Our own dropdown, not the browser's: the system menu is a white
+       rectangle in the system font landing on a dark chart. Built once
+       and left alone, so the tick that repaints the digits underneath
+       cannot close it mid-choice. */
+    var instEl = $('chartInst');
+    if (instEl && !instEl.__sel) {
+      instEl.__sel = window.NexSelect(instEl, {
+        options: API.symbols.map(instOption),
+        value: S.symbol,
+        onChange: function (o) { switchSymbol(o.value); }
+      });
+      /* The figures in the list are whatever they were on the last tick
+         of the selected series, which on a two-second instrument is up
+         to two seconds stale at the moment the list opens. Refresh once
+         on the way in, after the click has done the opening. */
+      instEl.addEventListener('click', function () { setTimeout(refreshPicker, 0); });
+    } else if (instEl && instEl.__sel && instEl.__sel.value() !== S.symbol) {
+      instEl.__sel.set(S.symbol);
+    }
+    refreshPicker();
+    var h = API.feed.history(S.symbol).slice(-120);
+    renderInstLive(h, meta);
+    var counts = [0,0,0,0,0,0,0,0,0,0];
+    h.forEach(function (p) {
+      var dg = p.digit == null ? lastDigitOf(p.price, meta.digits) : p.digit;
+      counts[dg]++;
+    });
+    var total = h.length || 1;
+    var pctArr = counts.map(function (c) { return c / total * 100; });
+    var max = Math.max.apply(null, pctArr);
+    var min = Math.min.apply(null, pctArr);
+    var cur = h[h.length - 1];
+    var curDigit = cur.digit == null ? lastDigitOf(cur.price, meta.digits) : cur.digit;
+
+    var picking = S.tab !== 'even_odd';
+    /* While a contract is running, the digit that just landed is either
+       on its side or it is not, and that is the only thing anybody is
+       reading this row for. Green for a tick the contract wants, red for
+       one it does not — so a trader on Even watches the live circle go
+       green on 2 and red on 3 without doing the parity themselves. */
+    /* Only the tick that settles a contract lights its circle. The ticks
+       before it move the marker as they would with nothing running, so a
+       trade reads as the digits walking and then one landing. */
+    var live = settledJust();
+    var out = '';
+    for (var i = 0; i < 10; i++) {
+      /* The circle holds the digit and nothing else. The share sat
+         inside it at 7.5px, which is under the size anything is meant to
+         be read at, and it was competing with the number it describes. */
+      var cls = 'dcell' + (pctArr[i] === max ? ' hot' : '') +
+        (pctArr[i] === min && min < max ? ' cold' : '') + (i === curDigit ? ' cur' : '') +
+        (picking && i === S.barrier ? ' sel' : '') +
+        (live && i === curDigit
+          ? (API.contracts.winning(live, i) ? ' hit' : ' miss')
+          : '');
+      out += '<button class="' + cls + '" data-digit="' + i + '"' + (picking ? '' : ' tabindex="-1"') + '>' +
+        '<span class="digit">' + i + '</span>' +
+        '<i class="dpct">' + pctArr[i].toFixed(1) + '%</i></button>';
+    }
+    html(el.digits, out);
+  }
+
+  /* ---------- a row in the instrument picker ----------
+     The mark, the short name, the long one, and on the right what the
+     series is doing: the price and how far it has moved over the last
+     120 ticks, which is the same window the digit shares are counted
+     across and the same one the card over the chart reports.
+
+     "Generated series" stays on every row, including the ones with
+     flags on them. The flags are the shape of the instrument — a pair
+     moving in its fifth decimal — and not a claim that the number came
+     from a market, because it did not: every series in this app is the
+     same random walk with different numbers in front of it. */
+  function instOption(sym) {
+    return {
+      value: sym.id,
+      label: sym.short || sym.name,
+      group: sym.group,
+      iconHtml: window.NexMark(sym),
+      note: (sym.short ? sym.name + ' · ' : '') + 'Generated series',
+      tail: instTail(sym)
+    };
+  }
+
+  /* The window each figure is measured over: one number, used by the
+     card, the picker and the digit shares alike. */
+  var WINDOW = 120;
+
+  function instTail(sym) {
+    var h = API.feed.history(sym.id);
+    if (!h || !h.length) return '';
+    h = h.slice(-WINDOW);
+    var first = h[0].price, last = h[h.length - 1].price;
+    var pct = first ? (last - first) / first * 100 : 0;
+    var tone = pct > 0 ? 'pos' : pct < 0 ? 'neg' : '';
+    return '<b class="p num">' + last.toFixed(sym.digits) + '</b>' +
+      '<span class="c num ' + tone + '">' + (pct > 0 ? '+' : '') + pct.toFixed(2) + '%</span>';
+  }
+
+  /* Only while the list is open, and only the figures: rebuilding the
+     rows under a finger would lose the scroll position every second. */
+  function refreshPicker() {
+    var host = $('chartInst');
+    if (!host || !host.classList.contains('open')) return;
+    var rows = host.querySelectorAll('.sel-row');
+    for (var i = 0; i < rows.length; i++) {
+      var tail = rows[i].querySelector('.sel-tail');
+      var sym = API.symbol(rows[i].getAttribute('data-val'));
+      if (tail && sym) tail.innerHTML = instTail(sym);
+    }
+  }
+
+  /* ---------- the live figure on the instrument card ----------
+     The price and how far it has moved, over the same last 120 ticks the
+     digit shares below are counted across. One window for everything on
+     this screen: two different "recently"s on one card is a question
+     nobody should have to ask.
+
+     Repainted from renderDigits, which already runs on every tick, so
+     this costs a tick handler rather than a timer of its own. */
+  function renderInstLive(h, meta) {
+    var node = $('instLive');
+    if (!node || !h.length) return;
+    var first = h[0].price, last = h[h.length - 1].price;
+    var chg = last - first;
+    var pct = first ? chg / first * 100 : 0;
+    var tone = chg > 0 ? 'pos' : chg < 0 ? 'neg' : '';
+    var sign = chg > 0 ? '+' : '';
+
+    node.innerHTML =
+      '<span class="p">' + last.toFixed(meta.digits) + '</span>' +
+      '<span class="c ' + tone + '">' + sign + chg.toFixed(meta.digits) +
+        ' (' + sign + pct.toFixed(2) + '%)</span>';
+    node.title = 'Change over the last ' + h.length + ' ticks';
+  }
+
+  /* ---------- contract tabs ---------- */
+  function renderTabs() {
+    /* An icon each, so the three are told apart at a glance rather than
+       by reading three similar pairs of words. The glyph says what the
+       contract asks: a split for parity, a bullseye for hitting one
+       digit, arrows for above and below. */
+    var tabs = [
+      ['even_odd', 'Even / Odd', 'lc-contrast'],
+      ['matches', 'Matches / Differs', 'lc-crosshair'],
+      ['over_under', 'Over / Under', 'lc-arrow-down-up']
+    ];
+    /* The heading only shows where the tabs are a list inside the
+       ticket. Across the top of the chart they are plainly three tabs
+       and a word over them is a word to read. */
+    html(el.tabs, '<span class="label ctabs-h">Contract</span>' + tabs.map(function (t) {
+      return '<button class="ctab' + (S.tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' +
+        '<i class="ctab-ico">' + I(t[2], 16) + '</i>' +
+        '<span>' + t[1] + '</span>' +
+      '</button>';
+    }).join(''));
+  }
+
+  /* ---------- which column the chooser lives in ----------
+     On a laptop the contract type belongs to the ticket. It was a row of
+     three tabs in the top corner of the chart column, which is the one
+     place on the screen nobody looks while setting up a trade — "I
+     cannot see where you choose Even / Odd" is the whole report. In the
+     right-hand card it is a list of three, above the stake, with the
+     rest of the ticket under it.
+
+     Moved rather than copied: one chooser, one active state. On a phone
+     it goes back where it was, above the chart, because there is only
+     one column there and it is the first thing the page should say. */
+  var wide = null;
+  function placeTabs() {
+    if (!el.tabs) return;
+    /* On a phone they belong inside the pinned head, above the chart and
+       held there with it. Dropped back into .col-mid they would scroll
+       away with the digits, which is the one place they must not be:
+       the chooser has to stay reachable from anywhere in the ticket. */
+    var head = document.querySelector('.terminal .chart-pin') ||
+               document.querySelector('.terminal .col-mid');
+    var right = document.querySelector('.terminal .col-right');
+    if (!head || !right) return;
+    var want = window.matchMedia('(min-width:900px)').matches ? right : head;
+    if (el.tabs.parentElement === want) return;
+    want.insertBefore(el.tabs, want.firstChild);
+  }
+  function watchWidth() {
+    if (!window.matchMedia) return;
+    wide = window.matchMedia('(min-width:900px)');
+    var onChange = function () { placeTabs(); };
+    if (wide.addEventListener) wide.addEventListener('change', onChange);
+    else if (wide.addListener) wide.addListener(onChange);
+  }
+
+  /* ---------- run targets ----------
+     Profit in green, loss in red, the loss multiplier in orange. These
+     are the same three numbers the automated run stops on, so editing
+     one here writes straight through to the saved run settings. */
+  function targetCell(id, label, prefix, value, tone) {
+    return '<div class="tgt ' + tone + '">' +
+      '<span class="tgt-l">' + label + '</span>' +
+      '<span class="tgt-v"><i>' + prefix + '</i>' +
+        '<input id="' + id + '" class="num" value="' + value + '" inputmode="decimal" ' +
+        'autocomplete="off" aria-label="' + label + '"></span>' +
+    '</div>';
+  }
+  function targetsRow(auto) {
+    return '<div class="targets">' +
+      targetCell('tgtTP', 'Target profit', '$', auto.takeProfit, 'pos') +
+      targetCell('tgtSL', 'Stop loss', '$', auto.stopLoss, 'neg') +
+      /* Shown and saved, not applied: every contract in a run is staked
+         the same. */
+      targetCell('tgtMult', 'Loss multiple', '\u00D7', auto.multiplier || 1, 'warn') +
+    '</div>';
+  }
+
+  /* ---------- what this ticket is ----------
+     Four lines under the controls: the instrument, the contract, how long
+     it runs and what it pays. Every one of these was already decided
+     somewhere on the screen — on Markets, in the chooser, in code — and
+     none of them was written down in the one card you read before
+     pressing a side.
+
+     Desktop only. The right-hand card has the height for it and the
+     phone does not; there the same four facts are two thumb-lengths of
+     scrolling away from the buttons, which is worse than not saying
+     them. */
+  function detailRow(k, v) {
+    return '<div class="td-row"><span>' + k + '</span><b>' + v + '</b></div>';
+  }
+  function ticketDetail() {
+    var meta = API.symbol(S.symbol);
+    var sides = sidesFor();
+    var r0 = API.contracts.payoutRate(typeFor(sides[0][0]));
+    var r1 = API.contracts.payoutRate(typeFor(sides[1][0]));
+    function rate(r) { return '+' + ((r - 1) * 100).toFixed(2) + '%'; }
+
+    return '<div class="tdetail">' +
+      detailRow('Instrument', meta.name) +
+      detailRow('Contract', tabLabel()) +
+      detailRow('Duration', S.mode === 'manual' ? CONTRACT_TICKS + ' ticks' : 'Until target or stop') +
+      /* The two sides of a contract do not always pay the same — Matches
+         and Differs are nowhere near each other — so this says one rate
+         only when it is honestly one rate. */
+      (r0 === r1
+        ? detailRow('Payout', rate(r0))
+        : detailRow(sides[0][1], rate(r0)) + detailRow(sides[1][1], rate(r1))) +
+    '</div>';
+  }
+  function tabLabel() {
+    return S.tab === 'even_odd' ? 'Even / Odd'
+      : S.tab === 'matches' ? 'Matches / Differs' : 'Over / Under';
+  }
+
+  /* ---------- panel ---------- */
+  function renderPanel() {
+    var today = API.contracts.today();
+    var wins = today.filter(function (c) { return c.status === 'won'; }).length;
+    var losses = today.filter(function (c) { return c.status === 'lost'; }).length;
+    var pnl = today.reduce(function (a, c) { return a + (c.status === 'open' ? 0 : c.profit); }, 0);
+    var auto = API.prefs.auto();
+
+    /* A number line, not a stepper. Picking 7 was six presses of a
+       chevron, and the digit is not a quantity to nudge up and down: it
+       is one of ten choices, all of which fit on one row. */
+    var barrierRow = S.tab === 'even_odd' ? '' :
+      '<div class="barrier">' +
+        '<span class="label">' + (S.tab === 'matches' ? 'Digit to match' : 'Barrier digit') + '</span>' +
+        '<div class="numline">' +
+          [0,1,2,3,4,5,6,7,8,9].map(function (n) {
+            return '<button class="nb' + (n === S.barrier ? ' on' : '') +
+              '" data-digit="' + n + '" aria-pressed="' + (n === S.barrier) + '">' + n + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+
+    /* The run bar that sat here is gone, and with it the Settings
+       button. It showed "3 of 10 · +$4" and a Stop — both of which the
+       trade button already shows, in amber, with the progress drawn
+       along its own foot. Two of the same control is one to think
+       about, and this one sat between the targets and the buttons they
+       apply to.
+
+       What it also carried was a way into the run settings. The three
+       numbers a run stops on are still editable, in the row directly
+       above; how many contracts it places and the multiplier are not
+       something to be set before every session. */
+
+    /* The three targets are the rules an automated run stops on. In
+       manual mode there is no run to stop, so they were three fields
+       that did nothing sitting above the one control that does. */
+    var targets = S.mode === 'auto' ? targetsRow(auto) : '';
+
+    /* A ticket loaded from the scanner arrives with no card: the market,
+       contract and digit it set are already on the screen. */
+    var scanRow = '';
+
+    /* A strategy being copied, picked on the copy trading page. Said
+       once, with a way to stop, so nobody wonders why it is there. */
+    var copying = null;
+    try { copying = localStorage.getItem('nexas.copy.followingName'); } catch (e) {}
+    var copyRow = !copying ? '' :
+      '<div class="scan-note copy-note">' + I('copy', 15) +
+        '<span>Copying <b>' + String(copying).replace(/</g, '&lt;') + '</b>’s strategy.</span>' +
+        '<button class="scan-x" id="copyStop" aria-label="Stop copying">' + I('close', 14) + '</button>' +
+      '</div>';
+
+    html(el.panel,
+      copyRow +
+      scanRow +
+      '<div class="seg" id="modeSeg">' +
+        /* The label is wrapped because the capsule behind it is an
+           absolutely positioned pseudo-element, which would otherwise
+           paint over a bare text node. */
+        '<button data-mode="auto" class="' + (S.mode === 'auto' ? 'active' : '') + '"><span>Auto</span></button>' +
+        '<button data-mode="manual" class="' + (S.mode === 'manual' ? 'active' : '') + '"><span>Manual</span></button>' +
+      '</div>' +
+      /* Stake first: it is the field that gets touched on every single
+         trade, and it was below three that are set once and left. */
+      '<div class="stake-block">' +
+        '<div class="stake' + (S.error ? ' invalid' : '') + '">' +
+          '<button id="minus" aria-label="Decrease stake">' + I('minus', 15) + '</button>' +
+          '<div class="f"><input id="stake" value="' + stakeShown() + '" inputmode="decimal" aria-label="Stake">' +
+            '<span class="cur">' + API.money.stakeCurrency() + '</span></div>' +
+          '<button id="plus" aria-label="Increase stake">' + I('plus', 15) + '</button>' +
+        '</div>' +
+        (S.error ? '<div class="field-error" role="alert">' + S.error + '</div>' : '') +
+        '<div class="quick" id="quick">' +
+          API.money.stakeChips().chips.map(function (n) {
+            return '<button data-add="' + n + '">+' + F.count(n) + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+      targets +
+      /* Last, under the automated run box, and in the same place in both
+         modes. It used to sit directly under the stake in manual and
+         above two boxes in auto, so the digit moved down the panel when
+         the mode changed — on the one control somebody reaches for
+         without looking. */
+      barrierRow +
+      ticketDetail() +
+      /* one line, not two: the trade screen is short on height and this
+         is the least load-bearing thing on it */
+      '<div class="session">' +
+        '<span class="num">' + today.length + ' trades · ' + wins + 'W / ' + losses + 'L</span>' +
+        '<span class="num ' + (pnl >= 0 ? 'pos' : 'neg') + '">' + F.signedUsd(pnl) + '</span>' +
+      '</div>');
+  }
+
+  /* ---------- dock (the two CTAs) ----------
+     Idle, each side shows its name and what it pays, nothing else. Once
+     a side is running it turns amber and becomes the stop control, with
+     its progress drawn along the bottom of the button itself, that is
+     the whole progress display, so nothing has to appear elsewhere on
+     the page and push the layout around. */
+  function sidesFor() {
+    return S.tab === 'even_odd' ? [['even', 'Even'], ['odd', 'Odd']]
+      : S.tab === 'matches' ? [['matches', 'Matches ' + S.barrier], ['differs', 'Differs ' + S.barrier]]
+      : [['over', 'Over ' + S.barrier], ['under', 'Under ' + S.barrier]];
+  }
+
+  /* The contract on the instrument on screen that the last tick
+     settled, if any. Used to tint the live digit; when two settle on
+     the same tick the first is enough, since the circle can only say
+     one thing. */
+  function settledJust() {
+    /* The contract the last tick settled, held until the next tick
+       replaces it. Open contracts are left out on purpose: their ticks
+       are not results yet. */
+    var all = API.contracts.all();
+    for (var j = 0; j < all.length && j < 5; j++) {
+      var c = all[j];
+      if (c.symbol === S.symbol && c.status !== 'open' && c.exitTime &&
+          Date.now() - c.exitTime < ((API.symbol(c.symbol) || {}).rate || 1000) - 50) return c;
+    }
+    return null;
+  }
+
+  /* the live contract for a side on this instrument, if any */
+  function runningOn(side) {
+    var open = API.contracts.open();
+    for (var i = 0; i < open.length; i++) {
+      if (open[i].symbol === S.symbol && open[i].side === side) return open[i];
+    }
+    return null;
+  }
+
+  /* "3s left", from ticks and the speed this instrument runs at. The
+     contract counts ticks; a person waiting counts seconds. */
+  function secondsLeft(c) {
+    var rate = (API.symbol(c.symbol) || {}).rate || 1000;
+    var left = Math.max(0, Math.ceil((c.ticks - c.elapsed) * rate / 1000));
+    return left + 's left';
+  }
+
+  function renderDock() {
+    var blocked = API.connection.status() !== 'live';
+    var busy = false;
+    var sides = sidesFor();
+    for (var i = 0; i < sides.length; i++) if (runningOn(sides[i][0])) busy = true;
+    if (S.run) busy = true;
+
+    html(el.dock,
+      '<div class="trade-actions">' + sides.map(function (sd, i) {
+        var live = runningOn(sd[0]);
+        var isRun = S.run && S.run.side === sd[0];
+        var tone = i === 0 ? 'even' : 'odd';
+
+        if (live || isRun) {
+          /* A run of several shows how far through it is and where it
+             stands in money, with the bar filling contract by contract.
+             A single contract follows the contract itself: how much of it
+             is left, and the same seconds drawn along the foot. */
+          var pcTicks = live ? Math.min(100, Math.round(live.elapsed / live.ticks * 100)) : 0;
+          /* A run has no fixed length: it shows how many it has placed
+             and where it stands, and the bar fills towards the target. */
+          var multi = isRun && S.run.done > 0;
+          var sub = multi
+            ? 'Running · ' + F.signed(S.run.pnl)
+            : live
+              ? secondsLeft(live) + ' · ' + F.signed(live.value - live.stake)
+              : 'starting';
+          return '<button class="tbtn stop" data-stop="' + sd[0] + '">' +
+            '<div class="t">Stop</div>' +
+            '<div class="s">' + sub + '</div>' +
+            '<i class="tbtn-bar" style="width:' + (multi
+              ? Math.round(Math.max(0, Math.min(1, S.run.pnl / S.run.takeProfit)) * 100)
+              : pcTicks) + '%"></i>' +
+          '</button>';
+        }
+
+        return '<button class="tbtn ' + tone + '" data-side="' + sd[0] + '"' +
+          (blocked || busy ? ' disabled' : '') + '>' +
+          '<div class="t">' + sd[1] + '</div>' +
+          /* The figure was a bare "19.53", which is a number with no
+             question attached: it could as easily have been the stake,
+             the price or the balance. It says what it is and what it is
+             in — Payout, in dollars, because the stake above it is
+             dollars — with the rate it works out to on the other end of
+             the row. */
+          '<div class="s payout">' +
+            '<span class="s-k">Payout <b>$' + F.usdAmount(payoutFor(sd[0])) + '</b></span>' +
+            '<span class="s-p">' + pct(sd[0]) + '</span>' +
+          '</div>' +
+        '</button>';
+      }).join('') + '</div>');
+  }
+
+  /* The old card under the chart is gone: progress lives on the button
+     and the full detail comes up as a result dialog when it finishes. */
+  function renderActive() { html(el.active, ''); }
+
+  function renderAll() {
+    renderTabs(); renderDigits();
+    if (!typing()) renderPanel();
+    renderDock(); renderActive();
+    if (chart) chart.setMarkers(API.contracts.all().filter(function (c) { return c.symbol === S.symbol; }).slice(0, 12));
+  }
+
+  /* update the error + CTA state in place, so typing is never interrupted */
+  function refreshValidity() {
+    var box = el.panel.querySelector('.stake');
+    if (!box) return renderPanel();
+    box.classList.toggle('invalid', !!S.error);
+    var err = el.panel.querySelector('.field-error');
+    if (S.error && !err) {
+      err = document.createElement('div');
+      err.className = 'field-error';
+      err.setAttribute('role', 'alert');
+      box.parentNode.insertBefore(err, box.nextSibling);
+    }
+    if (err) {
+      if (!S.error) err.remove();
+      else err.textContent = S.error;
+    }
+    renderDock();
+  }
+
+  function typing() {
+    var a = document.activeElement;
+    if (!a) return false;
+    return a.id === 'stake' || !!(a.closest && a.closest('.targets'));
+  }
+
+  /* ---------- the ticks inside a contract ----------
+     Not called. The ticks before the one that settles a contract should
+     look like the market moving with nothing running; the result comes
+     on the tick that decides, as the banner or the card. */
+
+  /* ---------- a run's stake ----------
+     A run is planned over RUN_PLAN contracts. Each one is staked to win
+     an even share of what is left to make over the contracts left in
+     that plan: a fifth of the target on the first, a quarter of what
+     remains on the second, and so on, until the last of the plan (and
+     any after it) is staked to land the run on its target in one win,
+     to the cent. Capped by what is left before the stop loss, so a
+     losing contract takes the run to its stop and never past it.
+
+     So a run ends on its target or its stop: usually in about five
+     contracts, rarely more than eight. Staking for the whole target at
+     once ended most runs on their second contract, and a fixed stake
+     with a ten-trade limit ended them on neither.
+
+     The outcome of each contract is left to the tick, exactly as
+     before; only the size of the stake is decided here. */
+  var MAX_STAKE = 5000;
+  var RUN_PLAN = 5;
+  /* The pause between one contract in a run settling and the next
+     being placed: about four seconds a contract with the tick, so a
+     run of five takes around twenty. */
+  var RUN_GAP_MS = 3000;
+  /* What the next contract is placed at: the run's sized stake while
+     one is going, the trader's otherwise. The field and the payout on
+     the buttons keep showing the trader's stake throughout, so the
+     figure they typed does not jump about mid-run. */
+  function runningStake() { return S.run ? S.run.stake : S.stake; }
+  function runStake(r) {
+    var type = typeFor(r.side);
+    var left = Math.max(1, RUN_PLAN - r.done);
+    var need = Math.round((r.takeProfit - r.pnl) / left * 100) / 100;
+    var rate = API.contracts.payoutRate(type);
+    var s = Math.ceil(need / (rate - 1) * 100) / 100;
+    while (API.contracts.payoutFor(type, s) - s < need - 0.0001) s = Math.round((s + 0.01) * 100) / 100;
+    s = Math.max(s, API.money.minStakeUsd());
+    var room = Math.round((r.stopLoss + r.pnl) * 100) / 100;
+    return Math.min(s, room, MAX_STAKE);
+  }
+
+  /* The highest target this balance can stake the first share of, for
+     the message when the one asked for is out of reach. */
+  function reachableTarget(side, funds) {
+    var type = typeFor(side);
+    var s = Math.floor(Math.min(funds, MAX_STAKE) * 100) / 100;
+    return Math.max(0, (API.contracts.payoutFor(type, s) - s) * RUN_PLAN);
+  }
+
+  /* ---------- how long a contract runs ----------
+     Ten seconds, and it is not asked for.
+
+     It used to be five ticks, which is not the same thing: these
+     instruments tick at different speeds, one a second and one every
+     two, so the identical contract ran for five seconds on one series
+     and ten on another. The number nobody could see was changing while
+     the number on the ticket stayed at "5".
+
+     So the duration is stated in time and the ticks are worked out from
+     whatever the instrument runs at. Clamped to what the contract rules
+     allow, so an unusually slow series cannot round down to nothing.
+
+     Ten seconds is also what makes the run watchable: every tick inside
+     it is called as it lands, which on these instruments is five to ten
+     calls per contract instead of one verdict at the end. */
+  var RUN_MS = 10000;
+
+
+  function ticksFor(symbol) {
+    var meta = API.symbol(symbol) || {};
+    var rate = meta.rate || 1000;
+    return Math.max(1, Math.min(10, Math.round(RUN_MS / rate)));
+  }
+
+  /* A hand-placed contract is three ticks: two that pass like any
+     other, then the one that settles it. A contract inside a run is
+     one tick, so the digit that lands is the digit that decides it.
+     With three, the first digit could land the right way, read as a
+     win, and the contract still lose on the third. */
+  var CONTRACT_TICKS = 3;
+  var RUN_TICKS = 1;
+  function contractTicks() {
+    return S.run ? RUN_TICKS : CONTRACT_TICKS;
+  }
+
+  /* ---------- validation ---------- */
+  function check() {
+    /* Signed out, there is nothing to complain about yet: the join sheet
+       answers the first tap on a trade button instead of a red line. */
+    if (API.account.kind() === 'real' && !API.account.realAvailable()) { S.error = null; return true; }
+    S.error = API.contracts.validate({ stake: runningStake(), ticks: contractTicks(S.symbol), symbol: S.symbol });
+    return !S.error;
+  }
+
+  /* ---------- placing ---------- */
+  function place(side, runId) {
+    if (API.account.kind() === 'real' && window.NexNeedAccount && window.NexNeedAccount()) return null;
+    var res = API.contracts.buy({
+      symbol: S.symbol, type: typeFor(side), side: side,
+      barrier: S.tab === 'even_odd' ? null : S.barrier,
+      stake: runningStake(), ticks: runId ? RUN_TICKS : CONTRACT_TICKS, run: runId || null
+    });
+    if (!res.ok) {
+      S.error = res.error;
+      renderPanel();
+      window.NexToast(res.error);
+      return null;
+    }
+    S.error = null;
+    /* The live circle tints against the open contract, so the row has to
+       be repainted the moment there is one rather than on the next tick. */
+    renderPanel(); renderActive(); renderDock(); renderDigits();
+    return res.contract;
+  }
+
+  /* ---------- automated runs ----------
+     A run has no fixed number of contracts. It keeps placing them until
+     its running profit reaches the target or its running loss reaches
+     the stop, and nothing else ends it on its own.
+
+     Signed in, the server keeps that count. The run is opened there with
+     its two rules, every contract is recorded against it, and the answer
+     to "carry on or stop" comes back with the record. Without a server,
+     or if it does not answer in time, the same two rules are applied
+     here so a run can never go on past them. */
+  function live() {
+    return !!(window.NexNet && window.NexNet.live && window.NexNet.signedIn());
+  }
+
+  function startRun(side) {
+    var cfg = API.prefs.auto();
+    if (!(cfg.takeProfit >= 0.01) || !(cfg.stopLoss >= 0.01)) {
+      window.NexToast('Set a target profit and a stop loss first');
+      return;
+    }
+    /* No trade limit: a run ends on its target or its stop, and the
+       stake is sized (runStake) so that takes a few contracts. base is
+       the stake the trader typed, put back when the run ends. */
+    var r = {
+      id: 'R' + Date.now(), side: side, done: 0, wins: 0, losses: 0, pnl: 0,
+      base: S.stake, multiplier: 1,
+      takeProfit: cfg.takeProfit, stopLoss: cfg.stopLoss,
+      maxTrades: null,
+      serverId: null
+    };
+    r.stake = runStake(r);
+    /* A first stake the balance cannot cover would leave a win short of
+       the target, so the run is refused and says what is in reach. */
+    if (r.stake > API.account.balance() + 0.0001) {
+      window.NexToast('Target too high for your balance. Highest target ' +
+        F.usd(reachableTarget(side, API.account.balance())));
+      return;
+    }
+    /* The stake field is left alone: it keeps the trader's figure for
+       the whole run, and the run's own sized stakes go on r.stake. */
+    S.run = r;
+
+    /* A run is one trade to the person running it: the balance on screen
+       stays where it started and moves once, when the run ends. */
+    API.account.hold(API.account.displayBalance());
+    var sideLabel = (sidesFor().filter(function (sd) { return sd[0] === side; })[0] || [side, side])[1];
+    API.runs.start({
+      id: r.id, side: side, label: sideLabel, type: typeFor(side), tab: S.tab,
+      symbol: S.symbol, symbolName: (API.symbol(S.symbol) || {}).name || S.symbol,
+      stake: r.stake, takeProfit: r.takeProfit, stopLoss: r.stopLoss, maxTrades: r.maxTrades,
+      account: API.account.kind(), startedAt: Date.now()
+    });
+    renderPanel();
+    renderDock();
+
+    if (!live()) { place(side, r.id); return; }
+
+    window.NexNet.startRun({
+      accountKind: API.account.kind() === 'real' ? 'real' : 'demo',
+      takeProfitMinor: Math.round(r.takeProfit * 100),
+      stopLossMinor: Math.round(r.stopLoss * 100),
+      multiplier: r.multiplier,
+      baseStakeMinor: Math.round(r.stake * 100)
+    }).then(function (run) {
+      if (S.run !== r) return;              /* stopped while it was opening */
+      if (run && run.id) {
+        API.runs.rename(r.id, run.id);
+        r.serverId = run.id; r.id = run.id;
+      }
+      place(side, r.id);
+    }).catch(function () {
+      /* The rules still hold without the server; they are just applied
+         here instead. */
+      if (S.run !== r) return;
+      place(side, r.id);
+    });
+  }
+
+  /* kind: 'take_profit' | 'stop_loss' | 'stopped' */
+  function stopRun(reason, kind) {
+    if (!S.run) return;
+    var r = S.run;
+    S.run = null;
+    r.endKind = kind || 'stopped';
+    API.prefs.spendAuto();
+    if (r.serverId && (r.endKind === 'stopped' || r.endKind === 'trade_limit') && live()) {
+      window.NexNet.stopRun(r.serverId).catch(function () {});
+    }
+    API.runs.update(r.id, {
+      status: r.endKind, endedAt: Date.now(),
+      done: r.done, wins: r.wins, losses: r.losses, pnl: r.pnl
+    });
+    /* The run is over: the balance on screen catches up in one move. */
+    API.account.release();
+    renderPanel();
+    renderDock();
+    if (!reason) return;
+
+    /* Every run ends on the summary card, a run of one included. It
+       used to be held back for runs of more than one contract, on the
+       grounds that "1 of 1" is not a story worth a dialog — but a run
+       of one is the default, so in practice an automated trade settled
+       with nothing but a banner that was gone three seconds later, and
+       the card that reports the session never appeared at all.
+
+       A run stopped by hand before its contract settled has no result
+       to show, so that one still leaves with a toast. */
+    if (r.done && window.NexModal) {
+      window.NexModal.open('runResult', null, { run: r, reason: reason });
+      return;
+    }
+    window.NexToast(reason);
+  }
+  /* A manual trade ends on the same card as an automated run: one
+     trade, its wins and losses, the rate, and the money. */
+  function showResult(c) {
+    if (!window.NexModal) return;
+    window.NexModal.open('runResult', null, { run: {
+      done: 1, pnl: c.profit, endKind: 'single',
+      wins: c.profit >= 0 ? 1 : 0, losses: c.profit >= 0 ? 0 : 1
+    } });
+  }
+
+  /* A contract settling inside a run that carries on says so across the
+     top, green won and red lost. Anything that ends on a card, a
+     hand-placed contract or the last of a run, leaves this to the card. */
+  function flashResult(c) {
+    if (!window.NexFlash) return;
+    var stamp = (c.status === 'won' || (c.status === 'sold' && c.profit >= 0)) ? 'Contract Won' : 'Contract Lost';
+    var kind = c.status === 'sold' ? (c.profit >= 0 ? 'win' : 'loss')
+      : c.status === 'won' ? 'win' : 'loss';
+    window.NexFlash(kind, stamp, c.symbolName || '',
+      API.contracts.label(c) + '  ' + F.signedUsd(c.profit));
+  }
+
+  /* The sound the banner would have made, for a result that goes
+     straight to the card instead. */
+  function soundResult(c) {
+    if (window.NexSound) window.NexSound.play(c.profit >= 0 && c.status !== 'lost' ? 'win' : 'loss');
+  }
+
+  function onSettled(c) {
+    /* A hand-placed contract gets the full result dialog and nothing
+       else: a banner saying the same thing over the top of the card was
+       the one result reported twice. Contracts inside an automated run
+       would throw a dialog every few seconds, so those report with the
+       banner, except the last, which the run's card reports. */
+    if (c.status !== 'open' && !c.run) { soundResult(c); showResult(c); }
+    if (!S.run || c.run !== S.run.id) { renderAll(); return; }
+
+    var r = S.run;
+    r.done++;
+    /* Counted as the run goes rather than derived at the end: the
+       summary card reports wins, losses and the rate between them, and a
+       contract sold early is neither a clean win nor a clean loss — it
+       is whichever side of zero it came out on. */
+    if (c.profit >= 0) r.wins++; else r.losses++;
+    r.pnl = Math.round((r.pnl + c.profit) * 100) / 100;
+    API.runs.update(r.id, { done: r.done, wins: r.wins, losses: r.losses, pnl: r.pnl });
+
+    /* The server's verdict when there is a server, the same rules here
+       when there is not. */
+    /* Decided here, at once, so the next tick's trade is not held up
+       waiting on the network. The server applies the same two rules to
+       the same contracts, and if it ends the run first, onServerRun below
+       stops it. */
+    decide(r, c, null);
+  }
+
+  /* The server's answer for each contract recorded against the run. */
+  function onServerRun(e) {
+    var d = e.detail || {};
+    var run = d.run;
+    var r = S.run;
+    if (!r || !run || run.id !== r.serverId || run.status === 'running') return;
+    var reason = run.status === 'take_profit' ? 'Target profit reached at ' + F.signedUsd(r.pnl)
+      : run.status === 'stop_loss' ? 'Stop loss reached at ' + F.signedUsd(r.pnl)
+      : 'Run stopped';
+    stopRun(reason, run.status);
+  }
+
+  function decide(r, c, run) {
+    if (S.run !== r) return;
+    var kind = null;
+    if (run && run.status && run.status !== 'running') {
+      kind = run.status;
+      if (run.pnlMinor != null) r.pnl = run.pnlMinor / 100;
+    } else if (!run) {
+      /* The stake was sized to land on these to the cent; the half cent
+         only forgives floating point. What is left before the stop being
+         under the smallest stake is the stop too: nothing more can be
+         staked inside it. */
+      kind = r.pnl >= r.takeProfit - 0.005 ? 'take_profit'
+        : -r.pnl >= r.stopLoss - 0.005 ? 'stop_loss'
+        : r.stopLoss + r.pnl < API.money.minStakeUsd() - 0.0001 ? 'stop_loss' : null;
+    }
+
+    if (kind === 'take_profit') { soundResult(c); return stopRun('Target profit reached at ' + F.signedUsd(r.pnl), kind); }
+    if (kind === 'stop_loss') { soundResult(c); return stopRun('Stop loss reached at ' + F.signedUsd(r.pnl), kind); }
+    if (kind === 'stopped') { soundResult(c); return stopRun('Run stopped', kind); }
+    if (r.maxTrades && r.done >= r.maxTrades) {
+      soundResult(c);
+      return stopRun('Trade limit reached at ' + F.signedUsd(r.pnl), 'trade_limit');
+    }
+    /* The next stake, sized from where the run now stands. A balance
+       that cannot cover all of it stakes what it has: a win then falls
+       short of the target and the run carries on from there. */
+    r.stake = Math.min(runStake(r), Math.floor(API.account.balance() * 100) / 100);
+    /* The one other thing that ends a run: the next stake cannot be
+       placed, usually because the balance no longer covers it. */
+    if (!check()) { soundResult(c); return stopRun('Run stopped: ' + S.error, 'stopped'); }
+
+    /* No banner between contracts. A run is one trade: its running P/L
+       is on the button and on the tick pop-ups, and its result is the
+       card at the end. A red "Contract Lost -$5" every few seconds read
+       as money leaving the account mid-trade. */
+    /* Coloured by the trade that just settled, not by the run: a win
+       after an earlier loss left the run below zero and came up red,
+       which read as the digit on screen having lost. The run total is
+       the line under it. */
+    if (window.NexTick) {
+      var won = c.profit >= 0;
+      window.NexTick(won ? 'win' : 'loss', F.signedUsd(c.profit),
+        won ? 'Trade won' : 'Trade lost',
+        'Run total ' + F.signedUsd(r.pnl));
+    }
+    renderAll();
+    /* A short breath before the next contract, so the pop-up can be
+       read and a run can be followed (and explained) as it goes.
+       Straight on to the next tick ended a five-contract run in a
+       handful of seconds. */
+    setTimeout(function () { if (S.run === r) place(r.side, r.id); }, RUN_GAP_MS);
+  }
+
+
+  /* ---------- events ---------- */
+  function wire(root) {
+    root.addEventListener('click', function (e) {
+      var t = e.target;
+
+      var tab = t.closest('[data-tab]');
+      if (tab) {
+        S.tab = tab.getAttribute('data-tab');
+        stopRun();
+        renderAll();
+        return;
+      }
+
+      if (t.closest('#scanClear')) { S.fromScan = null; renderPanel(); return; }
+      if (t.closest('#copyStop')) {
+        try {
+          localStorage.removeItem('nexas.copy.following');
+          localStorage.removeItem('nexas.copy.followingName');
+        } catch (e2) {}
+        window.NexToast('Stopped copying');
+        renderPanel();
+        return;
+      }
+
+      var mode = t.closest('[data-mode]');
+      if (mode) {
+        S.mode = mode.getAttribute('data-mode');
+        if (S.mode === 'manual') stopRun();
+        renderPanel();
+        return;
+      }
+
+      var dg = t.closest('[data-digit]');
+      if (dg && S.tab !== 'even_odd') {
+        S.barrier = +dg.getAttribute('data-digit');
+        renderDigits(); renderPanel(); renderDock();
+        return;
+      }
+
+      var bStep = t.closest('[data-barrier]');
+      if (bStep) {
+        S.barrier = Math.max(0, Math.min(9, S.barrier + (+bStep.getAttribute('data-barrier'))));
+        renderDigits(); renderPanel(); renderDock();
+        return;
+      }
+
+      var step = API.money.stakeChips().step;
+      if (t.closest('#plus')) { setStake(stakeShown() + step); return; }
+      if (t.closest('#minus')) { setStake(stakeShown() - step); return; }
+
+      var add = t.closest('[data-add]');
+      if (add) { setStake(stakeShown() + (+add.getAttribute('data-add'))); return; }
+
+      var sell = t.closest('[data-sell]');
+      if (sell) {
+        var r = API.contracts.sell(sell.getAttribute('data-sell'));
+        if (!r.ok) window.NexToast(r.error);
+        renderAll();
+        return;
+      }
+
+      /* #runStop went with the run bar. Stopping is the trade button
+         itself now, which is what [data-stop] below handles. */
+
+      var stop = t.closest('[data-stop]');
+      if (stop) {
+        var which2 = stop.getAttribute('data-stop');
+        if (S.run) { stopRun('Run stopped', 'stopped'); renderAll(); return; }
+        var live = runningOn(which2);
+        if (live) {
+          var sold = API.contracts.sell(live.id);
+          if (!sold.ok) window.NexToast(sold.error);
+        }
+        renderAll();
+        return;
+      }
+
+      var side = t.closest('[data-side]');
+      if (side) {
+        if (!S.run && API.account.kind() === 'real' && window.NexNeedAccount && window.NexNeedAccount()) return;
+        if (!check()) { renderPanel(); window.NexToast(S.error); return; }
+        var which = side.getAttribute('data-side');
+        if (S.mode === 'auto') { S.run ? stopRun('Run stopped', 'stopped') : startRun(which); }
+        else place(which);
+        return;
+      }
+
+      /* chart controls */
+      var zoom = t.closest('[data-zoom]');
+      if (zoom && chart) {
+        var z = zoom.getAttribute('data-zoom');
+        z === 'in' ? chart.zoom(0.8) : z === 'out' ? chart.zoom(1.25) : chart.reset();
+        return;
+      }
+    });
+
+    root.addEventListener('input', function (e) {
+      var id = e.target.id;
+      if (id === 'stake') {
+        setStakeShown(e.target.value);
+        check();
+        refreshValidity();
+        return;
+      }
+      if (id === 'tgtTP') API.prefs.setAuto({ takeProfit: Math.max(0, +e.target.value || 0) });
+      else if (id === 'tgtSL') API.prefs.setAuto({ stopLoss: Math.max(0, +e.target.value || 0) });
+      else if (id === 'tgtMult') API.prefs.setAuto({ multiplier: Math.max(1, +e.target.value || 1) });
+    });
+    root.addEventListener('blur', function (e) {
+      var id = e.target.id;
+      if (id === 'stake' || id === 'tgtTP' || id === 'tgtSL' || id === 'tgtMult') renderPanel();
+    }, true);
+  }
+
+  /* S.stake is USD, like every other amount inside the app, and now so
+     is the field: stakes are quoted in dollars whatever currency the
+     balance is shown in. These two
+     are the only places it turns into the figure on screen and back, so
+     a stake typed in shillings is stored in dollars and nothing else in
+     this file has to know that happened.
+
+     Round in display units, not USD: rounding the dollars first leaves
+     the shillings showing 4,999.87 after somebody typed 5,000. */
+  function stakeShown() {
+    return Math.round(S.stake * 100) / 100;
+  }
+  function setStakeShown(shown) {
+    S.stake = Math.max(0, Math.round((+shown || 0) * 100) / 100);
+    /* Remembered, so leaving the terminal and coming back opens on the
+       stake the trader chose rather than the default. */
+    API.prefs.setStake(S.stake);
+  }
+
+  /* v is in display units, what the buttons add and what the field holds. */
+  function setStake(v) {
+    setStakeShown(v);
+    check();
+    if (typing()) {
+      var f = el.panel.querySelector('#stake');
+      if (f) f.value = stakeShown();
+      refreshValidity();
+    } else { renderPanel(); renderDock(); }
+  }
+
+  /* Change instrument without leaving the terminal. The chart is torn
+     down and rebuilt rather than re-pointed: it holds a window into one
+     series' history, and carrying that across to a different price
+     range draws a cliff between the two. */
+  function switchSymbol(id) {
+    if (!id || id === S.symbol) return;
+    if (!API.prefs.setSymbol(id)) return;
+    S.symbol = id;
+    if (chart) { chart.destroy(); chart = null; }
+    chart = window.NexChart.create($('chart'), { symbol: S.symbol });
+    chart.resize();
+    renderAll();
+  }
+
+  /* ---------- mount ---------- */
+  function init() {
+    API = window.NexAPI; F = window.NexFmt; I = window.NexIcon;
+    var root = $('terminal');
+    if (!root) return;
+
+    el.tabs = $('contractTabs');
+    el.digits = $('digits');
+    el.panel = $('panel');
+    el.dock = $('dock');
+    el.active = $('activeList');
+
+    /* Open on the stake the trader last chose, from any earlier visit.
+       Only someone who has never set one gets the round default. Only on
+       a first mount, so a stake mid-session is never overwritten. */
+    if (!root.__stakeSet) {
+      root.__stakeSet = true;
+      S.stake = API.prefs.stake() || API.money.stakeChips().start;
+    }
+
+    /* Markets is where an instrument is chosen; this is where that choice
+       arrives. Read every mount, not just the first, coming back from
+       Markets is a fresh document. */
+    S.symbol = API.prefs.symbol();
+
+    /* And a ticket from the scanner, if one is waiting. Taken, not read:
+       it applies once and is gone, so coming back to this page tomorrow
+       does not silently reset the panel to a signal from yesterday. */
+    var ticket = API.prefs.takeTicket();
+    if (ticket) {
+      S.symbol = ticket.symbol || S.symbol;
+      S.tab = ticket.tab || S.tab;
+      if (ticket.barrier != null) S.barrier = ticket.barrier;
+      /* A duration on the ticket is ignored: every contract here runs
+         five seconds, and the scanner ranks contracts, not durations. */
+      /* No stake rides along any more: the scanner found a contract, not
+         a position size. Whatever is in the field here stays. */
+      S.fromScan = ticket;
+    }
+
+    unsub.forEach(function (f) { f(); });
+    unsub = [];
+    if (chart) { chart.destroy(); chart = null; }
+    placeTabs();
+    if (root.__wired) { mounted(); return; }
+    root.__wired = true;
+    watchWidth();
+    wire(root);
+
+    mounted();
+  }
+
+  function mounted() {
+    API.ready(function () {
+      chart = window.NexChart.create($('chart'), { symbol: S.symbol });
+      chart.resize();
+      document.body.classList.remove('loading');
+      renderAll();
+
+      unsub.push(API.on('tick', function (d) {
+        if (d.symbol !== S.symbol) return;
+        renderDigits();
+        /* only while something is live, so the idle dock is not rebuilt
+           under the finger once a second for no reason */
+        if (S.run || API.contracts.open().length) renderDock();
+        if (chart) chart.dirty = true;
+      }));
+      unsub.push(API.on('settled', onSettled));
+      document.addEventListener('nex:run', onServerRun);
+      unsub.push(function () { document.removeEventListener('nex:run', onServerRun); });
+      unsub.push(API.on('balance', function () { check(); typing() ? refreshValidity() : renderPanel(); }));
+      unsub.push(API.on('connection', renderDock));
+    });
+  }
+
+  window.NexTrade = { init: init, state: S };
+})();

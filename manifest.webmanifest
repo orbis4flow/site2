@@ -1,0 +1,25 @@
+{
+  "name": "LyraBinary Terminal",
+  "short_name": "LyraBinary",
+  "description": "Trade synthetic indices from your phone.",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#171716",
+  "theme_color": "#171716",
+  "icons": [
+    {
+      "src": "assets/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
