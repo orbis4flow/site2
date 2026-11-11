@@ -796,7 +796,6 @@
             var lo = API().money.minDepositUsd();
             return method('mpesa', 'phone', 'M-Pesa',
                 'Instant · USD ' + F().count(lo) + ' - ' + F().count(1200)) +
-              method('card', 'card', 'Card', 'Visa and Mastercard · secured by Paystack') +
               method('usdt', 'coin', 'USDT', 'TRC-20 only · credited after one confirmation');
           }
         },
