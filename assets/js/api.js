@@ -1,5 +1,5 @@
 /* ============================================================
-   ZenyTrade, mock API
+   VeraBinary, mock API
    Everything the UI knows about prices, money and contracts comes
    through this module. It is deliberately shaped like the real
    thing (subscribe to a feed, buy, sell, list) so swapping in a
@@ -422,7 +422,7 @@
     } catch (e) {}
   }
 
-  /* Debounced, because ticks change state several times a second and
+  /* Debounced, because ticks change state sezenyl times a second and
      localStorage is synchronous. */
   function persist() {
     clearTimeout(saveTimer);
@@ -690,7 +690,7 @@
 
   /* The outcomes are dealt from a shuffled hand of five rather than
      rolled each time, so the rate holds over every five contracts and
-     not just on average: a coin weighted to 60 still throws five losses
+     not just on azenyge: a coin weighted to 60 still throws five losses
      in a row now and then, and that is the streak the mode exists to
      avoid. */
   var demoHand = [];
@@ -1059,7 +1059,7 @@
     referrals: {
       tiers: BOOST_TIERS,
       code: referralCode,
-      link: function () { return 'https://zenytrade.com/r/' + referralCode(); },
+      link: function () { return 'https://verabinary.com/r/' + referralCode(); },
       list: function () { seedReferrals(); return S.referrals.slice(); },
       count: function () { seedReferrals(); return S.referrals.length; },
       funded: fundedCount,

@@ -1,5 +1,5 @@
 /* ============================================================
-   ZenyTrade, chart
+   VeraBinary, chart
    Canvas price chart: line or candles, zoom and pan, a crosshair
    readout, and markers for the contracts currently running.
    Redraws on requestAnimationFrame and only while visible.

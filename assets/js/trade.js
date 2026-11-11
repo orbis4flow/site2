@@ -1,5 +1,5 @@
 /* ============================================================
-   ZenyTrade, terminal
+   VeraBinary, terminal
    Renders the contract panel for the selected trade type, runs
    validation, places and sells contracts, drives the automated
    run loop, and keeps the chart, digits and open positions in
@@ -475,7 +475,7 @@
         var tone = i === 0 ? 'even' : 'odd';
 
         if (live || isRun) {
-          /* A run of several shows how far through it is and where it
+          /* A run of sezenyl shows how far through it is and where it
              stands in money, with the bar filling contract by contract.
              A single contract follows the contract itself: how much of it
              is left, and the same seconds drawn along the foot. */

@@ -1,5 +1,5 @@
 /* ============================================================
-   ZenyTrade, positions
+   VeraBinary, positions
    Open contracts, settled history and the cash ledger, with
    filters, a detail sheet and CSV export.
    ============================================================ */
