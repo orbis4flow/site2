@@ -65,7 +65,7 @@
       targets: ['.topbar .btn-primary', '.rail [data-open="deposit"]'],
       icon: 'down',
       title: 'Deposit',
-      body: 'Fund your real account with M-Pesa, card or USDT. Deposits usually land ' +
+      body: 'Fund your real account with M-Pesa or USDT. Deposits usually land ' +
         'within two minutes.'
     },
     {

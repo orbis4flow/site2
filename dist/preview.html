@@ -5484,6 +5484,17 @@ html body #aiPage .es-state{display:inline-flex!important;flex-direction:row!imp
 /* Vera has no contract tabs or digit row: nothing empty above or below the chart */
 #contractTabs[hidden],#digits[hidden]{display:none!important}
 
+/* ---------------- no sideways scroll on phones ----------------
+   iPhones zoom into any field whose text is under 16px the moment it is
+   tapped, and the zoomed page then slides left and right. 16px on a
+   phone keeps the page still. The clip catches anything else that
+   pokes past the edge. */
+html,body{overflow-x:clip}
+@media (max-width:899px){
+  html body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  html body select,html body textarea{font-size:16px!important}
+}
+
 </style>
 
 <div class="app" id="app"></div>
@@ -11688,7 +11699,7 @@ window.NEX_TRADE_ICON = 'trade';
       targets: ['.topbar .btn-primary', '.rail [data-open="deposit"]'],
       icon: 'down',
       title: 'Deposit',
-      body: 'Fund your real account with M-Pesa, card or USDT. Deposits usually land ' +
+      body: 'Fund your real account with M-Pesa or USDT. Deposits usually land ' +
         'within two minutes.'
     },
     {
