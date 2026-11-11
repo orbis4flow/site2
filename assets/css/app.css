@@ -5499,3 +5499,8 @@ html,body{overflow-x:clip}
   html body .tabbar a.active .tb-lab{color:var(--text);font-weight:600}
   html body .tabbar a.active::before,html body .tabbar a.active::after{display:none!important}
 }
+
+/* the copy button on an address: the word, then a tick once it has copied */
+html body .input.address button{min-width:44px;display:inline-flex;align-items:center;justify-content:center}
+html body [data-copy-text].copied{color:var(--brand-strong)!important}
+html body [data-copy-text].copied svg{stroke-width:2.4}

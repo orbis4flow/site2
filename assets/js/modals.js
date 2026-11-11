@@ -796,7 +796,7 @@
             var lo = API().money.minDepositUsd();
             return method('mpesa', 'phone', 'M-Pesa',
                 'Instant · USD ' + F().count(lo) + ' - ' + F().count(1200)) +
-              method('usdt', 'coin', 'USDT', 'TRC-20 only · credited after one confirmation');
+              method('usdt', 'coin', 'USDT', 'TRC-20 only');
           }
         },
         form: {
@@ -852,20 +852,14 @@
                 ? '<div class="notice">' + I('alert', 17) +
                     '<span>The deposit address is not available just now. ' +
                     'Try again in a moment.</span></div>'
-                : '<div class="field"><label>Network</label>' +
-                    '<div class="input" style="display:flex;align-items:center;gap:8px">' +
-                      I('link', 16) + '<b>' + (w.network || 'TRC-20') + ' (Tron)</b></div>' +
-                    '<span class="hint">The only network we accept. USDT sent on ' +
-                      'any other chain cannot be recovered.</span></div>' +
-                  '<div class="field"><label>Send USDT to</label>' +
+                : '<div class="field"><label>Send USDT (' + (w.network || 'TRC-20') + ' only) to</label>' +
                     '<div class="input num address"><span>' + addr + '</span>' +
-                    '<button type="button" data-copy-text="' + addr + '" ' +
-                    'data-copy-note="Deposit address copied">Copy</button></div></div>' +
+                    '<button type="button" class="copy-btn" data-copy-text="' + addr + '" ' +
+                    'data-copy-note="Address copied" aria-label="Copy address">Copy</button></div>' +
+                    '<span class="hint">Other networks are lost.</span></div>' +
                   '<div class="field"><label for="txHash">Transaction hash</label>' +
                     '<input class="input num" id="txHash" autocomplete="off" spellcheck="false" ' +
-                      'placeholder="Paste it after you send">' +
-                    '<span class="hint">From your wallet, once the transfer is out. ' +
-                      'It is how we find your transfer and credit this account.</span></div>';
+                      'placeholder="Paste it after you send"></div>';
             }
 
             var pay = payCur();
@@ -899,9 +893,7 @@
                      it tells us money has already moved, and a button
                      labelled "confirm deposit" on a chain transfer is a
                      promise the rail cannot keep. */
-                  ? act('I have sent it', 'deposit', 'btn-pos') +
-                    '<span class="hint" style="text-align:center">' +
-                      'Checked against the chain and credited, usually within the hour.</span>'
+                  ? act('I have sent it', 'deposit', 'btn-pos')
                   : act('Confirm deposit', 'deposit', 'btn-pos')) +
             '</div>';
           }

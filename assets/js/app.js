@@ -1867,6 +1867,15 @@
       var copier = t.closest('[data-copy-text]');
       if (copier) {
         copyText(copier.getAttribute('data-copy-text'), copier.getAttribute('data-copy-note'));
+        /* The button itself says it worked: a tick for a moment, then back. */
+        if (!copier.__was) {
+          copier.__was = copier.innerHTML;
+          copier.classList.add('copied');
+          copier.innerHTML = icon('check', 16);
+          setTimeout(function () {
+            copier.innerHTML = copier.__was; copier.__was = null; copier.classList.remove('copied');
+          }, 1800);
+        }
         return;
       }
       var sharer = t.closest('[data-share]');
