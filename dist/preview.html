@@ -5198,6 +5198,41 @@ html body .shell > .ctabs .ctab.active{color:var(--text)!important;background:va
 html body .shell > .ctabs > :not(.ctab){display:none!important}
 html:root[data-theme] body .shell > .ctabs .ctab.active,html body .shell > .ctabs .ctab.active{color:var(--text)!important;background:var(--surface-2)!important}
 
+/* ---- buttons: a slight curve, not a pill ---- */
+:root{--btn-r:6px}
+html body .btn-primary,html body .btn-quiet,html body .btn,html body .btn-ghost,html body .btn-fill,html body .wd-go,
+html body .tbtn,html body .quick button,html body .acct,html body .chart-tools button,html body .chart-card .tf button,
+html body .chart-head .sel-btn,html body .stake,html body .hero-close,html body .tour-next,
+html body .topbar .btn-primary,html body .topbar .btn-quiet,html body .topbar .acct{border-radius:var(--btn-r)!important}
+html body .ctabs,html body .panel .seg,html body .shell > .ctabs{border-radius:var(--btn-r)!important;overflow:hidden}
+html body .panel{border-radius:var(--btn-r)!important;overflow:hidden}
+html body .panel .seg{border-radius:0!important}
+
+/* ================================================================
+   LyraBinary: the obisflow look in blue
+   Same shell and panels as Kora; the brand colour is a deep blue.
+   Buy / Even stays green and Sell / Odd red: those mean money.
+   ================================================================ */
+:root,:root[data-theme="light"]{
+  --brand:#2563EB;--brand-strong:#1D4ED8;--brand-tint:#EAF0FE;
+  --accent:#1D4ED8;--accent-soft:#EAF0FE;--accent-fill:#1D4ED8;--accent-fill-2:#1E40AF;
+  --chart-line:#1D4ED8;--chart-fill:rgba(29,78,216,.06);
+}
+:root[data-theme="dark"]{
+  --brand:#3B82F6;--brand-strong:#2563EB;--brand-tint:#142340;
+  --accent:#60A5FA;--accent-soft:#142340;--accent-fill:#2563EB;--accent-fill-2:#1D4ED8;
+  --chart-line:#3B82F6;--chart-fill:rgba(59,130,246,.07);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --brand:#3B82F6;--brand-strong:#2563EB;--brand-tint:#142340;
+  --accent:#60A5FA;--accent-soft:#142340;--accent-fill:#2563EB;--accent-fill-2:#1D4ED8;
+  --chart-line:#3B82F6;--chart-fill:rgba(59,130,246,.07);
+}}
+html body .topbar .btn-primary:hover,html body .btn-primary:hover{background:#1E40AF!important}
+/* the trade sides keep their meaning */
+html body .tbtn:first-child,html body .tbtn.even,html body .tbtn.rise,html body .tbtn.over,html body .tbtn.matches{background:#00994F!important}
+html body .tbtn:first-child:hover{background:#008545!important}
+
 </style>
 
 <div class="app" id="app"></div>
