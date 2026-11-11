@@ -5265,3 +5265,155 @@ html body .consent .btn-mini{display:flex;align-items:center;justify-content:cen
     bottom:calc(12px + env(safe-area-inset-bottom));
   }
 }
+
+
+/* ================================================================
+   Premium pass: the loader, the AI page and the bottom bar
+   ================================================================ */
+
+/* ---------- the loader: two rings, ink outside, the brand inside ---------- */
+.loader{
+  --color-1:var(--text);
+  --color-2:var(--brand);
+  --size:1px;
+  width:calc(48 * var(--size));height:calc(48 * var(--size));
+  border:calc(3 * var(--size)) dotted var(--color-1);
+  border-style:solid solid dotted dotted;border-radius:50%!important;
+  display:inline-block;position:relative;box-sizing:border-box;flex:none;
+  animation:rotation 2s linear infinite;
+}
+.loader::after{
+  content:'';box-sizing:border-box;position:absolute;left:0;right:0;top:0;bottom:0;margin:auto;
+  border:calc(3 * var(--size)) dotted var(--color-2);border-style:solid solid dotted;
+  width:calc(24 * var(--size));height:calc(24 * var(--size));border-radius:50%;
+  animation:rotationBack 1s linear infinite;transform-origin:center center;
+}
+:root[data-theme="dark"] .loader{--color-1:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .loader{--color-1:#fff}}
+/* inside a button: smaller, in the button's own colour */
+.loader.sm{--size:.34px;--color-1:currentColor;--color-2:currentColor;margin-right:8px;vertical-align:middle}
+@keyframes rotation{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+@keyframes rotationBack{0%{transform:rotate(0deg)}100%{transform:rotate(-360deg)}}
+@media (prefers-reduced-motion:reduce){.loader,.loader::after{animation-duration:4s}}
+
+/* ---------- the AI page ---------- */
+html body #aiPage .es{
+  border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.03),0 12px 32px rgba(0,0,0,.05);
+  background:var(--surface);
+}
+html body #aiPage .es-head{
+  padding:16px 16px 14px;gap:12px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,var(--brand-tint),transparent);
+}
+html body #aiPage .es-mark{
+  width:40px;height:40px;border-radius:12px;background:var(--brand-strong);color:#fff;
+  box-shadow:0 6px 16px -6px var(--brand-strong);
+}
+html body #aiPage .es-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+html body #aiPage .es-title b{font-size:16px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
+html body #aiPage .es-title span{font-size:11.5px;color:var(--muted)}
+html body #aiPage .es-state{
+  display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;
+  font-size:11px;font-weight:600;color:var(--text-2);background:var(--surface);border:1px solid var(--line);
+}
+html body #aiPage .es-state i{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+html body #aiPage .es-state.scanning i{background:var(--brand);animation:esPulse 1s ease-in-out infinite}
+html body #aiPage .es-state.done{color:var(--brand-strong);border-color:var(--brand)}
+html body #aiPage .es-state.done i{background:var(--brand)}
+@keyframes esPulse{50%{opacity:.25}}
+html body #aiPage .es-x{border-radius:50%;border:1px solid var(--line);width:30px;height:30px}
+html body #aiPage .es-body{padding:16px 16px 6px}
+html body #aiPage .es-intro{display:none}
+html body #aiPage .es-k{font-size:10px;letter-spacing:.1em;color:var(--muted)}
+html body #aiPage .es-select select{
+  background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;
+  font-weight:600;height:44px;padding:0 36px 0 13px;
+}
+html body #aiPage .es-prog-row{font-size:12px}
+html body #aiPage .es-prog-row .num{font-family:var(--mono);color:var(--text)}
+html body #aiPage .es-bar{height:6px;border-radius:999px;background:var(--surface-2)}
+html body #aiPage .es-bar i{background:linear-gradient(90deg,var(--brand-strong),var(--brand));border-radius:999px}
+/* waiting / scanning */
+html body #aiPage .es-best.wait{
+  border:1px dashed var(--line-strong);background:var(--surface-2);border-radius:10px;
+  padding:16px;justify-content:center;text-align:center;
+}
+html body #aiPage .es-best.wait p{font-size:12.5px;color:var(--muted)}
+html body #aiPage .es-best.scanning{flex-direction:column;align-items:center;gap:12px;padding:18px 16px}
+html body #aiPage .es-best.scanning .loader{transform:none}
+html body #aiPage .es-best.scanning p b{display:block;font-size:13.5px;color:var(--text);margin-bottom:2px}
+/* the result */
+html body #aiPage .es-best:not(.wait){
+  display:block;border:1px solid var(--brand);border-radius:10px;padding:14px;
+  background:linear-gradient(135deg,var(--brand-tint),var(--surface) 70%);
+}
+html body #aiPage .es-best-top{display:flex;align-items:flex-start;gap:12px}
+html body #aiPage .es-best-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+html body #aiPage .es-best-name .es-k{margin:0}
+html body #aiPage .es-best-name b{font-size:16px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
+html body #aiPage .es-best-sub{font-size:12px;color:var(--text-2)}
+html body #aiPage .es-score{text-align:right;flex:none}
+html body #aiPage .es-score b{display:block;font-size:28px;font-weight:700;line-height:1;color:var(--brand-strong);letter-spacing:-.03em}
+html body #aiPage .es-score b i{font-style:normal;font-size:15px;margin-left:1px}
+html body #aiPage .es-score span{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+html body #aiPage .es-meter{height:6px;border-radius:999px;background:var(--surface-2);margin:12px 0 10px;overflow:hidden}
+html body #aiPage .es-meter i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--brand-strong),var(--brand))}
+html body #aiPage .es-best .es-why{margin:0;font-size:12px;line-height:1.5;color:var(--text-2)}
+/* the three fields: one clean list */
+html body #aiPage .es-rows{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}
+html body #aiPage .es-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;font-size:13px;
+  border-bottom:1px solid var(--line-soft);
+}
+html body #aiPage .es-row:last-child{border-bottom:0}
+html body #aiPage .es-row span{color:var(--muted)}
+html body #aiPage .es-row b{font-weight:600;color:var(--text);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the two buttons: same place, same stack, finer finish */
+html body #aiPage .es-foot{border-top:1px solid var(--line);background:var(--surface)}
+html body #aiPage .es-foot .es-scan{
+  height:48px;background:var(--brand-strong)!important;color:#fff!important;font-weight:600;
+  box-shadow:0 8px 20px -10px var(--brand-strong);
+}
+html body #aiPage .es-load{
+  height:46px;padding:0;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);border-radius:6px;
+}
+html body #aiPage .es-load:not(:disabled){border-color:var(--brand);color:var(--brand-strong)}
+@media (max-height:720px){
+  html body #aiPage .es-head{padding:10px 14px}
+  html body #aiPage .es-row{padding:8px 12px}
+  html body #aiPage .es-best:not(.wait){padding:11px 12px}
+  html body #aiPage .es-meter{margin:8px 0 6px}
+}
+
+/* ---------- the bottom bar: frosted, the chosen place in a brand pill ---------- */
+@media (max-width:899px){
+  html body .tabbar{
+    background:color-mix(in srgb,var(--surface) 86%,transparent)!important;
+    backdrop-filter:saturate(1.6) blur(16px)!important;-webkit-backdrop-filter:saturate(1.6) blur(16px)!important;
+    border-top:1px solid var(--line)!important;box-shadow:0 -8px 24px -18px rgba(0,0,0,.25)!important;
+  }
+  html body .tabbar a{gap:4px;padding-top:6px}
+  html body .tabbar a .tb-ico{
+    width:52px;height:30px;display:grid;place-items:center;border-radius:999px;
+    transition:background .18s ease,color .18s ease;
+  }
+  html body .tabbar a .tb-ico svg{width:21px;height:21px;stroke-width:1.75}
+  html body .tabbar a .tb-lab{font-size:10.5px;font-weight:500;letter-spacing:.01em}
+  html body .tabbar a.active::after{display:none!important}
+  html body .tabbar a.active .tb-ico{background:var(--brand-tint);color:var(--brand-strong)}
+  html body .tabbar a.active .tb-ico svg{stroke-width:2.1}
+  html body .tabbar a.active .tb-lab{color:var(--text);font-weight:700}
+}
+/* radii for the premium pass (the base squares everything with !important) */
+html body .loader::after{border-radius:50%!important}
+html body #aiPage .es{border-radius:12px!important}
+html body #aiPage .es-mark{border-radius:12px!important}
+html body #aiPage .es-state,html body #aiPage .es-bar,html body #aiPage .es-bar i,html body #aiPage .es-meter,html body #aiPage .es-meter i{border-radius:999px!important}
+html body #aiPage .es-state i,html body #aiPage .es-x{border-radius:50%!important}
+html body #aiPage .es-select select{border-radius:8px!important}
+html body #aiPage .es-best,html body #aiPage .es-rows{border-radius:10px!important}
+html body #aiPage .es-load,html body #aiPage .es-foot .es-scan{border-radius:6px!important}
+html body #aiPage .es-foot{border-radius:0 0 12px 12px!important}
+@media (max-width:899px){html body .tabbar a .tb-ico{border-radius:999px!important}}
+html body #aiPage .es-state i{display:inline-block!important;flex:none}
+html body #aiPage .es-state{display:inline-flex!important;flex-direction:row!important;align-items:center!important;white-space:nowrap;line-height:1;flex:none}

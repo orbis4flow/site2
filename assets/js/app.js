@@ -1137,9 +1137,11 @@
   }
 
   /* ---------- loader ---------- */
+  /* Two rings turning against each other: the outer one in ink, the
+     inner one in the site's brand colour. 'sm' is the size for inside a
+     button, where it takes the button's own text colour. */
   function loader(cls) {
-    return '<span class="nloader ' + (cls || '') + '" role="status" aria-label="Loading">' +
-      '<i></i><i></i><i></i></span>';
+    return '<span class="loader' + (cls ? ' ' + cls : '') + '" role="status" aria-label="Loading"></span>';
   }
   window.NexLoader = loader;
 

@@ -240,30 +240,38 @@
       return '<div class="es-best wait"><p>Press Start deep scan to find the best market.</p></div>';
     }
     if (S.phase !== 'done') {
-      return '<div class="es-best wait">' + window.NexLoader() + '<p>Scanning…</p></div>';
+      return '<div class="es-best wait scanning">' + window.NexLoader() +
+        '<p><b>Scanning the board</b>Reading the last ticks of every index.</p></div>';
     }
     var sig = current();
     if (!sig) {
       return '<div class="es-best wait"><p>Not enough ticks yet. Re-scan in a minute.</p></div>';
     }
+    var q = Math.round(sig.prob * 100);
     return '<div class="es-best">' +
-        '<span class="es-ok">' + I('check', 14) + '</span>' +
-        '<div>' +
-          '<p><b>Best market:</b> ' + sig.symbolName + ' | ' + familyOf(sig) + ' ' + sig.label +
-            ' | <b class="es-q">Quality ' + Math.round(sig.prob * 100) + '%</b></p>' +
-          '<p class="es-why"><b>Why:</b> ' + why(sig) + '</p>' +
+        '<div class="es-best-top">' +
+          '<div class="es-best-name">' +
+            '<span class="es-k">Best market</span>' +
+            '<b>' + sig.symbolName + '</b>' +
+            '<span class="es-best-sub">' + familyOf(sig) + ' · ' + sig.label + '</span>' +
+          '</div>' +
+          '<div class="es-score"><b class="num">' + q + '<i>%</i></b><span>Quality</span></div>' +
         '</div>' +
+        '<div class="es-meter"><i style="width:' + q + '%"></i></div>' +
+        '<p class="es-why"><b>Why:</b> ' + why(sig) + '</p>' +
       '</div>';
   }
 
   function fields() {
     var sig = S.phase === 'done' ? current() : null;
     function f(k, v) {
-      return '<span class="es-k">' + k + '</span><div class="es-field">' + (v || '—') + '</div>';
+      return '<div class="es-row"><span>' + k + '</span><b>' + (v || '—') + '</b></div>';
     }
-    return f('Selected market', sig && sig.symbolName) +
+    return '<div class="es-rows">' +
+      f('Selected market', sig && sig.symbolName) +
       f('Trade type', sig ? familyOf(sig) : FAMILIES[S.family].label) +
-      f('Prediction (auto)', sig && sig.label);
+      f('Prediction (auto)', sig && sig.label) +
+    '</div>';
   }
 
   function foot() {
@@ -281,8 +289,10 @@
     if (!el.root) return;
     html(el.root, '<div class="es">' +
         '<div class="es-head">' +
-          '<span class="es-mark">' + I('radar', 16) + '</span>' +
-          '<b>Entry Scanner</b>' +
+          '<span class="es-mark">' + I('radar', 18) + '</span>' +
+          '<div class="es-title"><b>Entry Scanner</b><span>AI · every volatility index</span></div>' +
+          '<span class="es-state ' + S.phase + '"><i></i>' +
+            (S.phase === 'scanning' ? 'Scanning' : S.phase === 'done' ? 'Ready' : 'Idle') + '</span>' +
           '<button class="es-x" id="esClose" aria-label="Close">' + I('close', 16) + '</button>' +
         '</div>' +
         '<div class="es-body">' +
