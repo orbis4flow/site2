@@ -15,7 +15,7 @@
 window.NEXAS_CONFIG = {
   /* The same API as Novi: LyraBinary is a second front end on one
      backend, so accounts, balances and payments are shared. */
-  apiBase: '' /* TODO: the Kora API on Render (shared by Kora, Lyra and Vexa), e.g. https://kora-api.onrender.com */,
+  apiBase: 'https://sitesbackend.onrender.com',
 
   /* Supabase project. The publishable key is bound by row level
      security and is safe to ship in a browser. The service-role key
