@@ -26,7 +26,7 @@ for (const name of PAGES) {
   bodyTag.replace(/(data-[\w-]+)="([^"]*)"/g, (_, k, v) => { attrs[k] = v; return ''; });
 
   const main = src.match(/<main>([\s\S]*?)<\/main>/i);
-  const title = (src.match(/<title>([^<]*)<\/title>/i) || [, 'LyraBinary'])[1];
+  const title = (src.match(/<title>([^<]*)<\/title>/i) || [, 'ZenyTrade'])[1];
 
   // inline page-specific scripts (those without a src)
   const inline = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n');
@@ -44,7 +44,7 @@ for (const name of PAGES) {
    not be there. */
 const favicon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAABLklEQVR4nOyWv2rCUBTGj5qSpsIFpZZCAx3apXNxKXR21kdxdFefICr6DvoAbjqKgxD/DDqKkIiCiFGI4tELwT8xNxiz3W8Il3tPft/Jd0KIIMsy+Kkg+CxuwA28SwDP6nU71lpRikqhdHrKI9IzcfDPYJH63vxE85N6SDfCzbFtTeDujx2iafuCbrynG7fK7nwCi46KVFSHSrYBBcVyLVs67ov9mcPtIUKIMx1x25i0+v94bmvBlWm+Slr2zyWdYUDpdL0LP61/3/C6THyiH+5EyqrU1oClm0O26NijOJgvkl+np6Q2ItUhuJDApNP0XxrjaSZuHnvHTZd0sI3omo7C9A8zMEw4HzhTlxHZ0r3oLCJ8Q+jiUXS4iAhzEPtzzCFaVuFBCvD/Im7ADWAPAAD//7kimH0AAAAGSURBVAMANJl3+OjxEvgAAAAASUVORK5CYII=';
 
-const out = `<title>LyraBinary Terminal</title>
+const out = `<title>ZenyTrade Terminal</title>
 <link rel="icon" type="image/png" href="${favicon}">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">

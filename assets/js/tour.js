@@ -1,5 +1,5 @@
 /* ============================================================
-   LyraBinary, first-run tour
+   ZenyTrade, first-run tour
    Eight steps for a new account, shown once on the trade screen:
    where the money is, how to fund it, what to trade, how a trade is
    placed, the scanner, and what stands between a win and a payout.
@@ -50,7 +50,7 @@
   var STEPS = [
     {
       icon: 'spark',
-      title: 'Welcome to LyraBinary',
+      title: 'Welcome to ZenyTrade',
       body: 'A quick look at the parts that matter: eight steps, under a minute. ' +
         'You can skip it and come back to anything later.'
     },

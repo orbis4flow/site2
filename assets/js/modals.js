@@ -1,5 +1,5 @@
 /* ============================================================
-   LyraBinary, modal definitions
+   ZenyTrade, modal definitions
    Each modal is a set of steps; the engine in app.js renders the
    shell and handles back, close and step transitions.
      data-goto="stepId"       advance
@@ -791,7 +791,7 @@
       steps: {
         choose: {
           title: 'Deposit funds',
-          sub: 'Funds land in the account you are trading. No fee from LyraBinary.',
+          sub: 'Funds land in the account you are trading. No fee from ZenyTrade.',
           body: function () {
             var lo = API().money.minDepositUsd();
             return method('mpesa', 'phone', 'M-Pesa',
@@ -833,7 +833,7 @@
                   '<span class="handoff-mark">' + I('lock', 18) + '</span>' +
                   '<div class="handoff-t">' +
                     '<p>Card details are entered on Paystack\'s secure checkout. ' +
-                    'LyraBinary never sees your card number.</p>' +
+                    'ZenyTrade never sees your card number.</p>' +
                   '</div>' +
                 '</div>';
             } else {
@@ -893,7 +893,7 @@
                    action M-Pesa does, the server opens a transaction for
                    this exact amount and hands back the checkout URL. */
                 ? act(I('lock', 16) + 'Continue to Paystack', 'deposit', 'btn-pos') +
-                  '<span class="hint" style="text-align:center">Paystack collects the card details. LyraBinary never sees them.</span>'
+                  '<span class="hint" style="text-align:center">Paystack collects the card details. ZenyTrade never sees them.</span>'
                 : m === 'usdt'
                   /* Says what it does. This button does not move money,
                      it tells us money has already moved, and a button

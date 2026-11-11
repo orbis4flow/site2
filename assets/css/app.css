@@ -1,5 +1,5 @@
 /* ============================================================
-   LyraBinary — design system
+   ZenyTrade — design system
    Tokens first. Light is the base palette, dark overrides.
    Indigo brand, green / red for profit and loss only. Curved edges.
    ============================================================ */
@@ -1685,9 +1685,9 @@ footer a:hover{color:var(--text-2)}
 .topbar-title{
   flex:1;text-align:center;font-size:15px;font-weight:600;letter-spacing:-.01em;
 }
-/* The name is two words and reads as two: LYRA over BINARY, at the
+/* The name is two words and reads as two: ZENY over BINARY, at the
    height of one line of ordinary text, with the monogram beside it. A
-   single line of "LYRABINARY" is a word nobody can parse at a glance,
+   single line of "ZENYTRADE" is a word nobody can parse at a glance,
    and the two-line lockup is what makes the second word readable at the
    size a top bar allows. */
 /* The name is the logo. There was a blue "NB" tile in front of it, which
@@ -1695,7 +1695,7 @@ footer a:hover{color:var(--text-2)}
    the same thing said twice, and the tile was doing the work the type
    should be doing.
 
-   So one line, mixed case, and the split carries the mark: LyraBinary heavy in
+   So one line, mixed case, and the split carries the mark: ZenyTrade heavy in
    the text colour, Binary light in the brand blue. Weight and colour are
    what make two words read as one lockup; the old one used size and
    stacked them, which is a bar of small caps and not a logo. Mixed case
@@ -1744,7 +1744,7 @@ footer a:hover{color:var(--text-2)}
 }
 /* Below this the sums stop working however hard everything is squeezed,
    so the bar keeps the first word and drops the second. There is no
-   monogram to fall back on any more, and "LyraBinary" is still the name —
+   monogram to fall back on any more, and "ZenyTrade" is still the name —
    half a lockup reads better than a pair of initials did. Only in the
    bar: a sign-in page has a whole column to itself and no reason to
    drop any of its own name. */
@@ -4076,7 +4076,7 @@ html{touch-action:manipulation;overflow-x:clip}
 
 
 /* ================================================================
-   LyraBinary design layer
+   ZenyTrade design layer
    Monochrome and flat. Neutral greys carry the whole interface; indigo
    is kept for the primary action and the price line, green and red for
    money won and lost, and nothing else is coloured, icons included.
@@ -4600,7 +4600,7 @@ html{scroll-snap-type:none}
 
 
 /* ================================================================
-   LyraBinary: the Orbis look
+   ZenyTrade: the Orbis look
    Warm stone greys, one green, square corners, hairline panels, and
    monospace figures. The chart is a single line, never candles.
    Everything above is the shared base; this layer re-skins it.
@@ -5204,8 +5204,8 @@ html body .panel{border-radius:var(--btn-r)!important;overflow:hidden}
 html body .panel .seg{border-radius:0!important}
 
 /* ================================================================
-   LyraBinary: the obisflow look in blue
-   Same shell and panels as Kora; the brand colour is a deep blue.
+   ZenyTrade: the obisflow look in blue
+   Same shell and panels as Kivo; the brand colour is a deep blue.
    Buy / Even stays green and Sell / Odd red: those mean money.
    ================================================================ */
 :root,:root[data-theme="light"]{
@@ -5476,5 +5476,5 @@ html body #aiPage .es-state{display:inline-flex!important;flex-direction:row!imp
   .terminal .chart-pin #chart{min-height:min(66vh,600px)}
 }
 
-/* Vexa has no contract tabs or digit row: nothing empty above or below the chart */
+/* Vera has no contract tabs or digit row: nothing empty above or below the chart */
 #contractTabs[hidden],#digits[hidden]{display:none!important}

@@ -13,7 +13,7 @@
    a claim anyone should rely on.
    ============================================================ */
 window.NEXAS_CONFIG = {
-  /* The same API as Novi: LyraBinary is a second front end on one
+  /* The same API as Novi: ZenyTrade is a second front end on one
      backend, so accounts, balances and payments are shared. */
   apiBase: 'https://sitesbackend.onrender.com',
 
@@ -41,6 +41,6 @@ window.NEXAS_CONFIG = {
 window.NEXAS_API = window.NEXAS_API || window.NEXAS_CONFIG.apiBase;
 
 /* The brand, for the shell: the rail's mark and the Trade glyph. */
-window.NEX_BRAND = 'LyraBinary';
-window.NEX_MARK = 'lb';
+window.NEX_BRAND = 'ZenyTrade';
+window.NEX_MARK = 'zt';
 window.NEX_TRADE_ICON = 'trade';

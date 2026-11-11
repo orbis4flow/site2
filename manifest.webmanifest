@@ -1,6 +1,6 @@
 {
-  "name": "LyraBinary Terminal",
-  "short_name": "LyraBinary",
+  "name": "ZenyTrade Terminal",
+  "short_name": "ZenyTrade",
   "description": "Trade synthetic indices from your phone.",
   "start_url": "index.html",
   "scope": ".",
