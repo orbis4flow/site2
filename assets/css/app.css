@@ -5227,3 +5227,41 @@ html body .topbar .btn-primary:hover,html body .btn-primary:hover{background:#1E
 /* the trade sides keep their meaning */
 html body .tbtn:first-child,html body .tbtn.even,html body .tbtn.rise,html body .tbtn.over,html body .tbtn.matches{background:#00994F!important}
 html body .tbtn:first-child:hover{background:#008545!important}
+
+/* ---- the cookie card: a small floating card, title, one line, two buttons ---- */
+html body .consent{
+  left:12px;right:12px;bottom:calc(var(--tabbar-h, 62px) + 12px + env(safe-area-inset-bottom));
+  max-width:none;padding:14px;gap:12px;display:grid;grid-template-columns:auto 1fr;align-items:start;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 12px 32px rgba(0,0,0,.12);
+}
+html body .consent .consent-ico{
+  width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  background:var(--brand-tint);color:var(--brand-strong);flex:none;
+}
+html body .consent p{min-width:0;font-size:12.5px;line-height:1.45;color:var(--text-2)}
+html body .consent p b{display:block;font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:1px}
+html body .consent .consent-btns{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+html body .consent .btn-mini{
+  height:36px;border-radius:6px!important;font-size:13px;font-weight:600;
+  border:1px solid var(--line-strong);background:transparent;color:var(--text);
+}
+html body .consent .btn-mini.solid{background:var(--brand-strong);border-color:var(--brand-strong);color:#fff}
+@media (min-width:900px){
+  html body .consent{left:auto;right:20px;bottom:20px;width:340px}
+}
+
+/* ---- back buttons: the arrow in a circle ---- */
+html body .back-btn,html body .auth-back,html body .topbar .back-btn{
+  width:38px;height:38px;border-radius:50%!important;display:grid;place-items:center;
+  border:1px solid var(--line-strong)!important;background:var(--surface)!important;color:var(--text);
+}
+html body .back-btn:hover,html body .auth-back:hover{background:var(--surface-2)!important;border-color:var(--text-2)!important}
+html body .consent{border-radius:10px!important}
+html body .consent .consent-ico{border-radius:50%!important}
+html body .consent .btn-mini{display:flex;align-items:center;justify-content:center;text-align:center}
+@media (max-width:899px){
+  html body[data-chrome="auth"] .consent,html body[data-chrome="plain"] .consent,html body.no-tabs .consent{
+    bottom:calc(12px + env(safe-area-inset-bottom));
+  }
+}
