@@ -5489,3 +5489,13 @@ html,body{overflow-x:clip}
   html body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   html body select,html body textarea{font-size:16px!important}
 }
+
+/* ---------------- bottom bar: the active tab is its icon in colour ----------------
+   No pill behind it: the chosen tab's icon takes the site colour and the
+   rest of the bar stays as it is. */
+@media (max-width:899px){
+  html body .tabbar a .tb-ico,html body .tabbar a.active .tb-ico{background:none!important;box-shadow:none!important}
+  html body .tabbar a.active .tb-ico,html body .tabbar a.active .tb-ico svg{color:var(--brand-strong)!important}
+  html body .tabbar a.active .tb-lab{color:var(--text);font-weight:600}
+  html body .tabbar a.active::before,html body .tabbar a.active::after{display:none!important}
+}
