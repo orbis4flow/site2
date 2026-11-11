@@ -5465,3 +5465,16 @@ html body #aiPage .es-state{display:inline-flex!important;flex-direction:row!imp
 #contractTabs:has(.skx-tabs){display:block!important}
 .panel > .skx-panel{border:0;margin:0;background:transparent}
 .panel > .skx-panel .skx-seg{border:1px solid var(--line);margin:14px 14px 0}
+
+/* ---------------- a bigger chart ----------------
+   The chart is what people came to look at, so it gets more of the
+   screen: about half a phone's height, and two thirds of a laptop's. */
+@media (max-width:899px){
+  html body .terminal .chart-pin #chart{flex:none;height:clamp(260px, 50dvh, 400px);min-height:0}
+}
+@media (min-width:900px){
+  .terminal .chart-pin #chart{min-height:min(66vh,600px)}
+}
+
+/* Vexa has no contract tabs or digit row: nothing empty above or below the chart */
+#contractTabs[hidden],#digits[hidden]{display:none!important}

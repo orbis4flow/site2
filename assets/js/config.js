@@ -20,8 +20,8 @@ window.NEXAS_CONFIG = {
   /* Supabase project. The publishable key is bound by row level
      security and is safe to ship in a browser. The service-role key
      must never appear in a file like this. */
-  supabaseUrl: '' /* TODO: the new Supabase project URL */,
-  supabaseKey: '' /* TODO: its publishable key */,
+  supabaseUrl: 'https://fsokiaswtlmdsqrpoqxt.supabase.co',
+  supabaseKey: 'sb_publishable_xY2PH-pIxuh-WDClk7i4iw_pJkFW8nW',
 
   /* The USDT deposit wallet. Public by nature — it is what people send
      money to — and here as a fallback so the deposit sheet works before

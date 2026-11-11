@@ -5471,6 +5471,19 @@ html body #aiPage .es-state{display:inline-flex!important;flex-direction:row!imp
 .panel > .skx-panel{border:0;margin:0;background:transparent}
 .panel > .skx-panel .skx-seg{border:1px solid var(--line);margin:14px 14px 0}
 
+/* ---------------- a bigger chart ----------------
+   The chart is what people came to look at, so it gets more of the
+   screen: about half a phone's height, and two thirds of a laptop's. */
+@media (max-width:899px){
+  html body .terminal .chart-pin #chart{flex:none;height:clamp(260px, 50dvh, 400px);min-height:0}
+}
+@media (min-width:900px){
+  .terminal .chart-pin #chart{min-height:min(66vh,600px)}
+}
+
+/* Vexa has no contract tabs or digit row: nothing empty above or below the chart */
+#contractTabs[hidden],#digits[hidden]{display:none!important}
+
 </style>
 
 <div class="app" id="app"></div>
@@ -5499,8 +5512,8 @@ window.NEXAS_CONFIG = {
   /* Supabase project. The publishable key is bound by row level
      security and is safe to ship in a browser. The service-role key
      must never appear in a file like this. */
-  supabaseUrl: '' /* TODO: the new Supabase project URL */,
-  supabaseKey: '' /* TODO: its publishable key */,
+  supabaseUrl: 'https://fsokiaswtlmdsqrpoqxt.supabase.co',
+  supabaseKey: 'sb_publishable_xY2PH-pIxuh-WDClk7i4iw_pJkFW8nW',
 
   /* The USDT deposit wallet. Public by nature — it is what people send
      money to — and here as a fallback so the deposit sheet works before
