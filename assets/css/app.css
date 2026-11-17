@@ -5507,3 +5507,6 @@ html body [data-copy-text].copied svg{stroke-width:2.4}
 
 /* Google sign-in is switched off for now: shown, but greyed and not clickable */
 html body .google-off,html body .google-off:hover{opacity:.45;cursor:not-allowed;pointer-events:none;background:transparent!important}
+
+/* the splash uses the app's own spinner, centred over the brand name */
+html body .splash-inner > .loader{margin:0 auto 18px;display:block}

@@ -1330,7 +1330,8 @@
     var el = document.createElement('div');
     el.className = 'splash';
     el.innerHTML = '<div class="splash-inner">' +
-      '<div class="pulse"><i></i><i></i><i></i></div>' +
+      /* the same two-ring spinner the app uses everywhere else */
+      loader() +
       '<div class="splash-word">VeraBinary</div>' +
       '<div class="splash-msg" role="status">' + message + '</div></div>';
     document.body.appendChild(el);
