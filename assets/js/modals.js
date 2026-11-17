@@ -855,6 +855,7 @@
               var served = (window.NexNet && window.NexNet.settings && window.NexNet.settings()) || {};
               var w = served.usdt || (window.NEXAS_CONFIG || {}).usdt || {};
               var addr = w.address || '';
+              var binId = w.binanceId || ((window.NEXAS_CONFIG || {}).usdt || {}).binanceId || '';
 
               inner = !addr
                 ? '<div class="notice">' + I('alert', 17) +
@@ -865,6 +866,12 @@
                     '<button type="button" class="copy-btn" data-copy-text="' + addr + '" ' +
                     'data-copy-note="Address copied" aria-label="Copy address">Copy</button></div>' +
                     '<span class="hint">Other networks are lost.</span></div>' +
+                  (binId
+                    ? '<div class="field"><label>Or pay from Binance to Binance ID</label>' +
+                      '<div class="input num address"><span>' + binId + '</span>' +
+                      '<button type="button" class="copy-btn" data-copy-text="' + binId + '" ' +
+                      'data-copy-note="Binance ID copied" aria-label="Copy Binance ID">Copy</button></div></div>'
+                    : '') +
                   '<div class="field"><label for="txHash">Transaction hash</label>' +
                     '<input class="input num" id="txHash" autocomplete="off" spellcheck="false" ' +
                       'placeholder="Paste it after you send"></div>';

@@ -32,7 +32,9 @@ window.NEXAS_CONFIG = {
      choose the wrong one, and USDT sent over the wrong chain is gone. */
   usdt: {
     address: 'TLEDGCXYvTkUdEUYdCY7oHRN9vRKfWkngq',
-    network: 'TRC-20'
+    network: 'TRC-20',
+    /* Binance Pay ID, for customers paying from a Binance account. */
+    binanceId: '1292648210'
   }
 };
 
