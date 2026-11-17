@@ -2306,9 +2306,10 @@
            to this account, so it is checked here rather than being
            discovered as missing by the person trying to credit it. */
         var hash = ((document.getElementById('txHash') || {}).value || '').trim();
-        if (!hash) return fieldError('txHash', 'Paste the transaction hash from your wallet');
-        if (!/^[A-Fa-f0-9]{64}$/.test(hash)) {
-          return fieldError('txHash', 'A TRC-20 hash is 64 letters and numbers');
+        if (!hash) return fieldError('txHash', 'Paste the transaction hash or Binance order ID');
+        /* A TRC-20 hash (64 hex) or a Binance Pay order ID (digits). */
+        if (!/^[A-Fa-f0-9]{64}$/.test(hash) && !/^[0-9]{6,32}$/.test(hash)) {
+          return fieldError('txHash', 'Use the 64-character TRC-20 hash or the Binance order ID');
         }
         state.data.txHash = hash;
       }

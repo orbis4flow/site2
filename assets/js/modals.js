@@ -872,7 +872,7 @@
                       '<button type="button" class="copy-btn" data-copy-text="' + binId + '" ' +
                       'data-copy-note="Binance ID copied" aria-label="Copy Binance ID">Copy</button></div></div>'
                     : '') +
-                  '<div class="field"><label for="txHash">Transaction hash</label>' +
+                  '<div class="field"><label for="txHash">Transaction hash or Binance order ID</label>' +
                     '<input class="input num" id="txHash" autocomplete="off" spellcheck="false" ' +
                       'placeholder="Paste it after you send"></div>';
             }
