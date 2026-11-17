@@ -2059,6 +2059,10 @@
       }
     }
 
+    if (!mpesa && /cancel/i.test(text)) {
+      return { headline: 'Payment cancelled', note: 'Nothing was charged.', detail: 'Closed before paying', ref: state.data.ref || null };
+    }
+
     /* Ours, or unattributable, which we treat as ours. */
     return {
       headline: mpesa ? 'M-Pesa is not responding' : 'Payment could not be completed',
@@ -2078,6 +2082,41 @@
      number the input it came from no longer exists, which sent an empty
      string to the API, failed validation, and meant no STK prompt ever
      left the building. Read your inputs before you repaint. */
+  /* Paystack Inline: loaded the first time a card deposit starts. */
+  var paystackJs = null;
+  function loadPaystack() {
+    if (window.PaystackPop) return Promise.resolve();
+    if (paystackJs) return paystackJs;
+    paystackJs = new Promise(function (ok, fail) {
+      var s = document.createElement('script');
+      s.src = 'https://js.paystack.co/v2/inline.js';
+      s.async = true;
+      s.onload = function () { ok(); };
+      s.onerror = function () { paystackJs = null; fail(new Error('Could not load Paystack. Check your connection.')); };
+      document.head.appendChild(s);
+    });
+    return paystackJs;
+  }
+  function openPaystack(accessCode, token) {
+    loadPaystack().then(function () {
+      if (token !== payToken) return;
+      var popup = new window.PaystackPop();
+      popup.resumeTransaction(accessCode, {
+        /* The waiting screen behind keeps asking the server, which checks
+           with Paystack, so a success lands even if this never fires. */
+        onCancel: function () {
+          if (token !== payToken) return;
+          payToken++;
+          failDeposit('Card payment cancelled', 'card');
+        }
+      });
+    }).catch(function (err) {
+      if (token !== payToken) return;
+      payToken++;
+      failDeposit(err.message, 'card');
+    });
+  }
+
   async function liveDeposit(amount, money, phone) {
     var method = state.data.method;
     var token = ++payToken;
@@ -2091,14 +2130,17 @@
            person credits it after looking at the chain. */
         started = await window.NexNet.depositUsdt(Math.round(amount * 100), state.data.txHash);
       } else if (method === 'card') {
-        started = await window.NexNet.depositCard(Math.round(amount * 100));
-        /* Paystack collects the card on its own page. Same tab, not a
-           popup: this runs after an await, so the click that opened it is
-           no longer the current gesture and window.open is silently
-           blocked. The return trip carries ?deposit=<reference>, which
-           resumeDeposit() picks up on the way back in. */
-        if (started.checkoutUrl) { location.href = started.checkoutUrl; return; }
-        throw new Error('Paystack did not return a checkout page. Try again.');
+        /* Paystack charges shillings: the dollars typed, at the KES rate. */
+        var ke = API.geo.countries.KE;
+        started = await window.NexNet.depositCard(Math.round(state.data.credited * ke.rate * 100));
+        if (!started.accessCode) throw new Error('Card payment could not be started. Try again.');
+        state.data.ref = started.reference;
+        /* Paystack's own window, over this page. The card is typed into
+           Paystack's frame; this page only learns how it ended, and the
+           balance moves only when the server has checked with Paystack. */
+        openPaystack(started.accessCode, token);
+        await awaitDeposit(started.reference, token, method);
+        return;
       } else {
         started = await window.NexNet.depositMpesa(Math.round(amount * 100), phone);
       }

@@ -150,9 +150,16 @@
       '" data-cur="' + c.cur + '">You receive ≈ ' + F().localMoney(0, c.cur) + '</span>';
   }
 
+  /* Card deposits are on only when the API says a Paystack key is set. */
+  function cardOn() {
+    var s = (window.NexNet && window.NexNet.settings && window.NexNet.settings()) || {};
+    return !!s.card;
+  }
+
   function railChargeLine(methodId, usd) {
     if (methodId === 'usdt') return '';
-    var c = API().geo.country();
+    /* Paystack charges the card in shillings, wherever the customer is. */
+    var c = methodId === 'card' ? API().geo.countries.KE : API().geo.country();
     if (!c.cur || !c.rate || c.rate === 1) return '';
     return '<span class="hint" data-charge="amount" data-rate="' + c.rate +
       '" data-cur="' + c.cur + '">Charged as ' +
@@ -796,6 +803,7 @@
             var lo = API().money.minDepositUsd();
             return method('mpesa', 'phone', 'M-Pesa',
                 'Instant · USD ' + F().count(lo) + ' - ' + F().count(1200)) +
+              (cardOn() ? method('card', 'card', 'Card', 'Visa · Mastercard') : '') +
               method('usdt', 'coin', 'USDT', 'TRC-20 only');
           }
         },
@@ -832,7 +840,7 @@
               inner = '<div class="handoff">' +
                   '<span class="handoff-mark">' + I('lock', 18) + '</span>' +
                   '<div class="handoff-t">' +
-                    '<p>Card details are entered on Paystack\'s secure checkout. ' +
+                    '<p>You enter your card in Paystack\'s secure window. ' +
                     'VeraBinary never sees your card number.</p>' +
                   '</div>' +
                 '</div>';
@@ -886,8 +894,7 @@
                    be matched to an account. The button runs the same
                    action M-Pesa does, the server opens a transaction for
                    this exact amount and hands back the checkout URL. */
-                ? act(I('lock', 16) + 'Continue to Paystack', 'deposit', 'btn-pos') +
-                  '<span class="hint" style="text-align:center">Paystack collects the card details. VeraBinary never sees them.</span>'
+                ? act(I('lock', 16) + 'Pay with card', 'deposit', 'btn-pos')
                 : m === 'usdt'
                   /* Says what it does. This button does not move money,
                      it tells us money has already moved, and a button
