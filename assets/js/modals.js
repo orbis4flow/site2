@@ -787,7 +787,7 @@
           function () {
             return kv('Status', '<span class="badge warn">In review</span>') +
               kv('Usually takes', 'Under an hour') +
-              kv('Then', 'Deposit ' + API().account.unlockUsd + ' USD') +
+              (API().account.withdrawUnlocked() ? '' : kv('Then', 'Deposit ' + API().account.unlockUsd + ' USD')) +
               kv('Unlocks', 'Withdrawals');
           })
       }

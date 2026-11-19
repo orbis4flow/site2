@@ -7768,7 +7768,8 @@ window.NEX_TRADE_ICON = 'trade';
         S.deposited = next;
         persist();
       },
-      withdrawUnlocked: function () { return S.deposited >= WITHDRAW_UNLOCK_USD; },
+      /* VIP accounts trade the app's own money, so only verification gates them. */
+      withdrawUnlocked: function () { return !!(S.session && S.session.tier === 'vip') || S.deposited >= WITHDRAW_UNLOCK_USD; },
       debit: function (amount, kind) { adjust(-Math.abs(+amount || 0), { kind: kind || 'Withdrawal' }); }
     },
 
@@ -9157,7 +9158,7 @@ window.NEX_TRADE_ICON = 'trade';
           function () {
             return kv('Status', '<span class="badge warn">In review</span>') +
               kv('Usually takes', 'Under an hour') +
-              kv('Then', 'Deposit ' + API().account.unlockUsd + ' USD') +
+              (API().account.withdrawUnlocked() ? '' : kv('Then', 'Deposit ' + API().account.unlockUsd + ' USD')) +
               kv('Unlocks', 'Withdrawals');
           })
       }

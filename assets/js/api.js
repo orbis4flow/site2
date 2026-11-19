@@ -967,7 +967,8 @@
         S.deposited = next;
         persist();
       },
-      withdrawUnlocked: function () { return S.deposited >= WITHDRAW_UNLOCK_USD; },
+      /* VIP accounts trade the app's own money, so only verification gates them. */
+      withdrawUnlocked: function () { return !!(S.session && S.session.tier === 'vip') || S.deposited >= WITHDRAW_UNLOCK_USD; },
       debit: function (amount, kind) { adjust(-Math.abs(+amount || 0), { kind: kind || 'Withdrawal' }); }
     },
 
