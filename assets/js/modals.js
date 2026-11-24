@@ -854,7 +854,9 @@
                  environment variable and not a deploy. */
               var served = (window.NexNet && window.NexNet.settings && window.NexNet.settings()) || {};
               var w = served.usdt || (window.NEXAS_CONFIG || {}).usdt || {};
-              var addr = w.address || '';
+              /* This brand's own wallet wins: the API is shared with other
+                 brands, and its address belongs to them. */
+              var addr = ((window.NEXAS_CONFIG || {}).usdt || {}).address || w.address || '';
               var binId = w.binanceId || ((window.NEXAS_CONFIG || {}).usdt || {}).binanceId || '';
 
               inner = !addr
