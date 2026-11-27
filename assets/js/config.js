@@ -31,10 +31,10 @@ window.NEXAS_CONFIG = {
      a customer choosing a network from a menu is a customer who can
      choose the wrong one, and USDT sent over the wrong chain is gone. */
   usdt: {
-    address: 'TPsw7QoEkKsxpRz4DW4G3pdMCjGE1jAJVJ',
+    address: 'TPu1fppiSLJG81HFFb53LNpQwBQD8s5TxB',
     network: 'TRC-20',
     /* Binance Pay ID, for customers paying from a Binance account. */
-    binanceId: '1292648210'
+    binanceId: '1298068981'
   }
 };
 
